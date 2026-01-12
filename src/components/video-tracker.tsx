@@ -4,6 +4,7 @@
  * Video Tracker Component
  *
  * Main component that orchestrates video playback, detection, tracking, and visualization
+ * Supports both ML-based object detection AND motion detection
  */
 
 import { useRef, useState, useCallback, useEffect } from "react";
@@ -13,7 +14,9 @@ import {
     detect,
     Tracker,
     CanvasRenderer,
+    MotionDetector,
     type TrackerConfig,
+    type Detection,
     DEFAULT_TRACKER_CONFIG,
 } from "@/lib/tracking";
 
@@ -22,12 +25,14 @@ interface VideoTrackerProps {
 }
 
 type Status = "idle" | "loading-model" | "ready" | "processing" | "error";
+type DetectionMode = "objects" | "motion" | "both";
 
 export function VideoTracker({ className = "" }: VideoTrackerProps) {
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const trackerRef = useRef<Tracker | null>(null);
     const rendererRef = useRef<CanvasRenderer | null>(null);
+    const motionDetectorRef = useRef<MotionDetector | null>(null);
     const animationRef = useRef<number | null>(null);
 
     const [status, setStatus] = useState<Status>("idle");
@@ -36,6 +41,9 @@ export function VideoTracker({ className = "" }: VideoTrackerProps) {
     const [videoSrc, setVideoSrc] = useState<string>("");
     const [config, setConfig] = useState<TrackerConfig>(DEFAULT_TRACKER_CONFIG);
     const [detectionThreshold, setDetectionThreshold] = useState(0.5);
+    const [detectionMode, setDetectionMode] = useState<DetectionMode>("both");
+    const [motionThreshold, setMotionThreshold] = useState(25);
+    const [minBlobSize, setMinBlobSize] = useState(300);
 
     // Initialize model on mount
     useEffect(() => {
@@ -44,6 +52,10 @@ export function VideoTracker({ className = "" }: VideoTrackerProps) {
             try {
                 await loadModel();
                 trackerRef.current = new Tracker(config);
+                motionDetectorRef.current = new MotionDetector({
+                    threshold: motionThreshold,
+                    minBlobArea: minBlobSize,
+                });
                 setStatus("ready");
             } catch (error) {
                 setStatus("error");
@@ -68,6 +80,16 @@ export function VideoTracker({ className = "" }: VideoTrackerProps) {
         }
     }, [config]);
 
+    // Update motion detector config
+    useEffect(() => {
+        if (motionDetectorRef.current) {
+            motionDetectorRef.current.setConfig({
+                threshold: motionThreshold,
+                minBlobArea: minBlobSize,
+            });
+        }
+    }, [motionThreshold, minBlobSize]);
+
     // Handle video file selection
     const handleFileChange = useCallback(
         (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -83,9 +105,12 @@ export function VideoTracker({ className = "" }: VideoTrackerProps) {
             setVideoSrc(url);
             setIsPlaying(false);
 
-            // Reset tracker
+            // Reset tracker and motion detector
             if (trackerRef.current) {
                 trackerRef.current.reset();
+            }
+            if (motionDetectorRef.current) {
+                motionDetectorRef.current.reset();
             }
         },
         [videoSrc]
@@ -103,22 +128,44 @@ export function VideoTracker({ className = "" }: VideoTrackerProps) {
 
         // Initialize renderer
         rendererRef.current = new CanvasRenderer(canvas);
+
+        // Reset motion detector for new video
+        if (motionDetectorRef.current) {
+            motionDetectorRef.current.reset();
+        }
     }, []);
 
     // Main processing loop
     const processFrame = useCallback(async () => {
         const video = videoRef.current;
-        if (!video || video.paused || video.ended || !isModelReady()) {
+        if (!video || video.paused || video.ended) {
             return;
         }
 
         try {
-            // Run detection
-            const detections = await detect(video, detectionThreshold);
+            let allDetections: Detection[] = [];
 
-            // Update tracker
+            // Run object detection (COCO-SSD)
+            if (
+                (detectionMode === "objects" || detectionMode === "both") &&
+                isModelReady()
+            ) {
+                const objectDetections = await detect(video, detectionThreshold);
+                allDetections = [...allDetections, ...objectDetections];
+            }
+
+            // Run motion detection
+            if (
+                (detectionMode === "motion" || detectionMode === "both") &&
+                motionDetectorRef.current
+            ) {
+                const motionDetections = motionDetectorRef.current.detect(video);
+                allDetections = [...allDetections, ...motionDetections];
+            }
+
+            // Update tracker with combined detections
             if (trackerRef.current) {
-                const tracks = trackerRef.current.update(detections);
+                const tracks = trackerRef.current.update(allDetections);
 
                 // Render visualization
                 if (rendererRef.current) {
@@ -131,7 +178,7 @@ export function VideoTracker({ className = "" }: VideoTrackerProps) {
 
         // Continue loop
         animationRef.current = requestAnimationFrame(processFrame);
-    }, [detectionThreshold, config.maxLineDistance]);
+    }, [detectionThreshold, detectionMode, config.maxLineDistance]);
 
     // Handle play/pause
     const togglePlayback = useCallback(() => {
@@ -173,7 +220,9 @@ export function VideoTracker({ className = "" }: VideoTrackerProps) {
                     <div className="status error">Error: {errorMessage}</div>
                 )}
                 {status === "ready" && !videoSrc && (
-                    <div className="status ready">Model ready. Upload a video to begin.</div>
+                    <div className="status ready">
+                        Model ready. Upload a video to begin.
+                    </div>
                 )}
             </div>
 
@@ -194,26 +243,83 @@ export function VideoTracker({ className = "" }: VideoTrackerProps) {
                         type="button"
                         onClick={togglePlayback}
                         className="play-button"
-                        disabled={!isModelReady()}
                     >
                         {isPlaying ? "⏸ Pause" : "▶ Play"}
                     </button>
                 )}
             </div>
 
+            {/* Detection Mode Toggle */}
+            <div className="mode-toggle">
+                <span className="mode-label">Detection Mode:</span>
+                <div className="mode-buttons">
+                    <button
+                        type="button"
+                        className={`mode-btn ${detectionMode === "objects" ? "active" : ""}`}
+                        onClick={() => setDetectionMode("objects")}
+                    >
+                        🎯 Objects
+                    </button>
+                    <button
+                        type="button"
+                        className={`mode-btn ${detectionMode === "motion" ? "active" : ""}`}
+                        onClick={() => setDetectionMode("motion")}
+                    >
+                        💨 Motion
+                    </button>
+                    <button
+                        type="button"
+                        className={`mode-btn ${detectionMode === "both" ? "active" : ""}`}
+                        onClick={() => setDetectionMode("both")}
+                    >
+                        ⚡ Both
+                    </button>
+                </div>
+            </div>
+
             {/* Settings */}
             <div className="settings">
-                <label>
-                    Detection Threshold: {detectionThreshold.toFixed(2)}
-                    <input
-                        type="range"
-                        min="0.1"
-                        max="0.9"
-                        step="0.05"
-                        value={detectionThreshold}
-                        onChange={(e) => setDetectionThreshold(Number(e.target.value))}
-                    />
-                </label>
+                {(detectionMode === "objects" || detectionMode === "both") && (
+                    <label>
+                        Object Threshold: {detectionThreshold.toFixed(2)}
+                        <input
+                            type="range"
+                            min="0.1"
+                            max="0.9"
+                            step="0.05"
+                            value={detectionThreshold}
+                            onChange={(e) => setDetectionThreshold(Number(e.target.value))}
+                        />
+                    </label>
+                )}
+
+                {(detectionMode === "motion" || detectionMode === "both") && (
+                    <>
+                        <label>
+                            Motion Sensitivity: {motionThreshold}
+                            <input
+                                type="range"
+                                min="10"
+                                max="80"
+                                step="5"
+                                value={motionThreshold}
+                                onChange={(e) => setMotionThreshold(Number(e.target.value))}
+                            />
+                        </label>
+                        <label>
+                            Min Blob Size: {minBlobSize}px
+                            <input
+                                type="range"
+                                min="100"
+                                max="2000"
+                                step="100"
+                                value={minBlobSize}
+                                onChange={(e) => setMinBlobSize(Number(e.target.value))}
+                            />
+                        </label>
+                    </>
+                )}
+
                 <label>
                     Line Distance: {config.maxLineDistance}px
                     <input
@@ -323,6 +429,45 @@ export function VideoTracker({ className = "" }: VideoTrackerProps) {
         .play-button:disabled {
           opacity: 0.5;
           cursor: not-allowed;
+        }
+
+        .mode-toggle {
+          display: flex;
+          align-items: center;
+          gap: 1rem;
+          flex-wrap: wrap;
+        }
+
+        .mode-label {
+          font-size: 0.875rem;
+          color: #9ca3af;
+        }
+
+        .mode-buttons {
+          display: flex;
+          gap: 0.5rem;
+        }
+
+        .mode-btn {
+          padding: 0.5rem 1rem;
+          background: rgba(255, 255, 255, 0.1);
+          color: #9ca3af;
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          border-radius: 6px;
+          cursor: pointer;
+          font-size: 0.875rem;
+          transition: all 0.2s;
+        }
+
+        .mode-btn:hover {
+          background: rgba(255, 255, 255, 0.15);
+          color: white;
+        }
+
+        .mode-btn.active {
+          background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+          color: white;
+          border-color: transparent;
         }
 
         .settings {
