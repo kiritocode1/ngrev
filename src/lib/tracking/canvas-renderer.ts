@@ -61,29 +61,33 @@ export class CanvasRenderer {
      * Draw constellation lines connecting nearby tracks
      */
     private drawConstellationLines(tracks: Track[], maxDistance: number): void {
-        this.ctx.strokeStyle = this.config.lineColor;
         this.ctx.lineWidth = this.config.lineWidth;
 
         for (let i = 0; i < tracks.length; i++) {
+            const trackA = tracks[i];
+            // Use the center of the detection for the line start
+            const centerA = {
+                x: trackA.bbox.x + trackA.bbox.width / 2,
+                y: trackA.bbox.y + trackA.bbox.height / 2,
+            };
+
             for (let j = i + 1; j < tracks.length; j++) {
-                const distance = getDistance(tracks[i].bbox, tracks[j].bbox);
+                const trackB = tracks[j];
+                const distance = getDistance(trackA.bbox, trackB.bbox);
+
                 if (distance < maxDistance) {
-                    const c1 = {
-                        x: tracks[i].bbox.x + tracks[i].bbox.width / 2,
-                        y: tracks[i].bbox.y + tracks[i].bbox.height / 2,
-                    };
-                    const c2 = {
-                        x: tracks[j].bbox.x + tracks[j].bbox.width / 2,
-                        y: tracks[j].bbox.y + tracks[j].bbox.height / 2,
+                    const centerB = {
+                        x: trackB.bbox.x + trackB.bbox.width / 2,
+                        y: trackB.bbox.y + trackB.bbox.height / 2,
                     };
 
-                    // Fade line based on distance
-                    const alpha = 1 - distance / maxDistance;
-                    this.ctx.strokeStyle = `rgba(255, 255, 255, ${alpha * 0.4})`;
+                    // Alpha based on distance (closer = more opaque)
+                    const opacity = Math.max(0.1, 1 - (distance / maxDistance));
 
+                    this.ctx.strokeStyle = `rgba(255, 255, 255, ${opacity * 0.5})`;
                     this.ctx.beginPath();
-                    this.ctx.moveTo(c1.x, c1.y);
-                    this.ctx.lineTo(c2.x, c2.y);
+                    this.ctx.moveTo(centerA.x, centerA.y);
+                    this.ctx.lineTo(centerB.x, centerB.y);
                     this.ctx.stroke();
                 }
             }
@@ -91,82 +95,59 @@ export class CanvasRenderer {
     }
 
     /**
-     * Draw bounding box for a track
+     * Draw small marker box for a track
      */
     private drawBoundingBox(track: Track): void {
         const { x, y, width, height } = track.bbox;
 
+        // Calculate center
+        const cx = x + width / 2;
+        const cy = y + height / 2;
+
+        // Fixed small size for the marker
+        const size = 12;
+        const halfSize = size / 2;
+
         this.ctx.strokeStyle = this.config.boxColor;
         this.ctx.lineWidth = this.config.boxWidth;
-        this.ctx.strokeRect(x, y, width, height);
 
-        // Draw small corner accents for a more techy look
-        const cornerSize = Math.min(10, width * 0.15, height * 0.15);
-        this.ctx.lineWidth = this.config.boxWidth + 1;
+        // Draw small square at center
+        this.ctx.strokeRect(cx - halfSize, cy - halfSize, size, size);
 
-        // Top-left
-        this.ctx.beginPath();
-        this.ctx.moveTo(x, y + cornerSize);
-        this.ctx.lineTo(x, y);
-        this.ctx.lineTo(x + cornerSize, y);
-        this.ctx.stroke();
-
-        // Top-right
-        this.ctx.beginPath();
-        this.ctx.moveTo(x + width - cornerSize, y);
-        this.ctx.lineTo(x + width, y);
-        this.ctx.lineTo(x + width, y + cornerSize);
-        this.ctx.stroke();
-
-        // Bottom-left
-        this.ctx.beginPath();
-        this.ctx.moveTo(x, y + height - cornerSize);
-        this.ctx.lineTo(x, y + height);
-        this.ctx.lineTo(x + cornerSize, y + height);
-        this.ctx.stroke();
-
-        // Bottom-right
-        this.ctx.beginPath();
-        this.ctx.moveTo(x + width - cornerSize, y + height);
-        this.ctx.lineTo(x + width, y + height);
-        this.ctx.lineTo(x + width, y + height - cornerSize);
-        this.ctx.stroke();
+        // Add a small fill for visibility
+        this.ctx.fillStyle = "rgba(255, 255, 255, 0.1)";
+        this.ctx.fillRect(cx - halfSize, cy - halfSize, size, size);
     }
 
     /**
      * Draw label with ID and/or score
      */
     private drawLabel(track: Track): void {
-        const { x, y } = track.bbox;
+        const { x, y, width, height } = track.bbox;
+        const cx = x + width / 2;
+        const cy = y + height / 2;
+        const size = 12; // Match box size
+
         let label = "";
 
         if (this.config.showIds) {
-            label += `ID: ${track.id}`;
+            label += `${track.id}`;
         }
-        if (this.config.showScores) {
-            if (label) label += " | ";
-            label += track.score.toFixed(2);
-        }
+
+        // Only show score if it's very high or requested specifically
+        // if (this.config.showScores) {
+        //     label += ` ${track.score.toFixed(2)}`;
+        // }
 
         if (!label) return;
 
         this.ctx.font = this.config.labelFont;
-        const textMetrics = this.ctx.measureText(label);
-        const padding = 4;
-        const textHeight = 14;
+        this.ctx.fillStyle = "#ffffff";
+        this.ctx.textAlign = "center";
+        this.ctx.textBaseline = "bottom";
 
-        // Background for label
-        this.ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
-        this.ctx.fillRect(
-            x - 1,
-            y - textHeight - padding * 2,
-            textMetrics.width + padding * 2,
-            textHeight + padding
-        );
-
-        // Text
-        this.ctx.fillStyle = this.config.boxColor;
-        this.ctx.fillText(label, x + padding - 1, y - padding - 2);
+        // Draw label just above the marker
+        this.ctx.fillText(label, cx, cy - size / 2 - 2);
     }
 
     /**

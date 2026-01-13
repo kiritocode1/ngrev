@@ -59,7 +59,8 @@ export function isModelReady(): boolean {
  */
 export async function detect(
     input: HTMLVideoElement | HTMLImageElement | HTMLCanvasElement,
-    minScore = 0.5
+    minScore = 0.5,
+    minArea = 0
 ): Promise<Detection[]> {
     if (!model) {
         throw new Error("Model not loaded. Call loadModel() first.");
@@ -67,16 +68,21 @@ export async function detect(
 
     const predictions = await model.detect(input, undefined, minScore);
 
-    return predictions.map((pred) => ({
-        bbox: {
-            x: pred.bbox[0],
-            y: pred.bbox[1],
-            width: pred.bbox[2],
-            height: pred.bbox[3],
-        } as BoundingBox,
-        class: pred.class,
-        score: pred.score,
-    }));
+    return predictions
+        .map((pred) => ({
+            bbox: {
+                x: pred.bbox[0],
+                y: pred.bbox[1],
+                width: pred.bbox[2],
+                height: pred.bbox[3],
+            } as BoundingBox,
+            class: pred.class,
+            score: pred.score,
+        }))
+        .filter((detection) => {
+            const area = detection.bbox.width * detection.bbox.height;
+            return area >= minArea;
+        });
 }
 
 /**

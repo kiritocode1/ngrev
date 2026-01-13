@@ -65,10 +65,10 @@ export interface RendererConfig {
 
 /** Default tracker configuration */
 export const DEFAULT_TRACKER_CONFIG: TrackerConfig = {
-    iouThreshold: 0.3,
-    maxAge: 30,
-    minHits: 3,
-    maxLineDistance: 200,
+    iouThreshold: 0.2,
+    maxAge: 2,         // Remove tracks immediately when lost (very fast cleanup)
+    minHits: 2,        // Require more consistency before showing
+    maxLineDistance: 300,
 };
 
 /** Default renderer configuration */

@@ -150,7 +150,7 @@ export function VideoTracker({ className = "" }: VideoTrackerProps) {
                 (detectionMode === "objects" || detectionMode === "both") &&
                 isModelReady()
             ) {
-                const objectDetections = await detect(video, detectionThreshold);
+                const objectDetections = await detect(video, detectionThreshold, minBlobSize);
                 allDetections = [...allDetections, ...objectDetections];
             }
 
@@ -294,31 +294,30 @@ export function VideoTracker({ className = "" }: VideoTrackerProps) {
                 )}
 
                 {(detectionMode === "motion" || detectionMode === "both") && (
-                    <>
-                        <label>
-                            Motion Sensitivity: {motionThreshold}
-                            <input
-                                type="range"
-                                min="10"
-                                max="80"
-                                step="5"
-                                value={motionThreshold}
-                                onChange={(e) => setMotionThreshold(Number(e.target.value))}
-                            />
-                        </label>
-                        <label>
-                            Min Blob Size: {minBlobSize}px
-                            <input
-                                type="range"
-                                min="100"
-                                max="2000"
-                                step="100"
-                                value={minBlobSize}
-                                onChange={(e) => setMinBlobSize(Number(e.target.value))}
-                            />
-                        </label>
-                    </>
+                    <label>
+                        Motion Sensitivity: {motionThreshold}
+                        <input
+                            type="range"
+                            min="10"
+                            max="80"
+                            step="5"
+                            value={motionThreshold}
+                            onChange={(e) => setMotionThreshold(Number(e.target.value))}
+                        />
+                    </label>
                 )}
+
+                <label>
+                    Min Size: {minBlobSize}px²
+                    <input
+                        type="range"
+                        min="100"
+                        max="2000"
+                        step="100"
+                        value={minBlobSize}
+                        onChange={(e) => setMinBlobSize(Number(e.target.value))}
+                    />
+                </label>
 
                 <label>
                     Line Distance: {config.maxLineDistance}px
