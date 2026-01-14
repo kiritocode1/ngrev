@@ -234,7 +234,7 @@ export function AppSidebar() {
 
                                     {/* Position Toggle */}
                                     <ToggleGroup
-                                        value={rendererConfig.textPosition ? [rendererConfig.textPosition] : ["top"]}
+                                    value={rendererConfig.textPosition ? [rendererConfig.textPosition] : ["top"]}
                                         onValueChange={(val) => {
                                             const newVal = Array.isArray(val) ? val[val.length - 1] : val;
                                             if (newVal) setRendererConfig(prev => ({ ...prev, textPosition: newVal as any }));
