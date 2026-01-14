@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, Camera, Loader2, Pause, Play, Upload } from "lucide-react";
+import { AlertCircle, Camera, Download, Loader2, Pause, Play, Upload, Volume2, VolumeX } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,7 @@ import {
 } from "@/lib/tracking";
 import { cn } from "@/lib/utils";
 import { useTracker } from "@/context/tracker-context";
+import { ExportSession, downloadBlob, type ExportProgress } from "@/lib/video-exporter";
 
 type Status = "idle" | "loading-model" | "ready" | "processing" | "error";
 
@@ -54,8 +55,13 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
     const [isPlaying, setIsPlaying] = useState(false);
     const [videoSrc, setVideoSrc] = useState<string>("");
     const [isCamera, setIsCamera] = useState(false);
+    const [isMuted, setIsMuted] = useState(false); // Start unmuted for voiceover
+    const [isExporting, setIsExporting] = useState(false);
+    const [exportProgress, setExportProgress] = useState<ExportProgress | null>(null);
     const streamRef = useRef<MediaStream | null>(null);
     const lastTracksRef = useRef<any[]>([]); // Store last tracks for instant rendering
+    const videoFileRef = useRef<File | null>(null); // Store original video file for export
+    const exportSessionRef = useRef<ExportSession | null>(null);
 
     // Refs for real-time loop access (avoids stale closures)
     const rendererConfigRef = useRef(rendererConfig);
@@ -137,6 +143,9 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
             if (videoSrc) {
                 URL.revokeObjectURL(videoSrc);
             }
+
+            // Store file for export
+            videoFileRef.current = file;
 
             const url = URL.createObjectURL(file);
             setVideoSrc(url);
@@ -310,6 +319,131 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
         if (animationRef.current) {
             cancelAnimationFrame(animationRef.current);
         }
+        // Stop export recording if active
+        if (exportSessionRef.current?.isActive()) {
+            exportSessionRef.current.stopRecording().then(blob => {
+                if (blob) {
+                    const filename = `tracked-video-${Date.now()}.mp4`;
+                    downloadBlob(blob, filename);
+                }
+                setIsExporting(false);
+                setExportProgress(null);
+            });
+        }
+    }, []);
+
+    // Toggle audio mute (for voiceover feature)
+    const toggleMute = useCallback(() => {
+        const video = videoRef.current;
+        if (video) {
+            video.muted = !video.muted;
+            setIsMuted(video.muted);
+        }
+    }, []);
+
+    // Export video with audio
+    const handleExport = useCallback(async () => {
+        const video = videoRef.current;
+        const canvas = canvasRef.current;
+        const file = videoFileRef.current;
+
+        if (!video || !canvas) {
+            setErrorMessage("No video or canvas available for export");
+            return;
+        }
+
+        if (!file) {
+            setErrorMessage("Original video file not available. Please re-upload the video.");
+            return;
+        }
+
+        setIsExporting(true);
+        setExportProgress({ phase: "preparing", progress: 0, message: "Preparing export..." });
+
+        try {
+            const session = new ExportSession({ frameRate: 30, format: "mp4" });
+            exportSessionRef.current = session;
+
+            // Extract audio from original video
+            await session.extractAudioFromVideo(file, setExportProgress);
+
+            // Start recording
+            await session.startRecording(canvas, setExportProgress);
+
+            // Reset video to beginning and play
+            video.currentTime = 0;
+            video.muted = true; // Mute during export to avoid double audio
+            setIsMuted(true);
+
+            // Wait for seek to complete
+            await new Promise<void>(resolve => {
+                const onSeeked = () => {
+                    video.removeEventListener("seeked", onSeeked);
+                    resolve();
+                };
+                video.addEventListener("seeked", onSeeked);
+            });
+
+            // Start playback - the processFrame will run, and handleVideoEnded will stop export
+            video.play();
+            setIsPlaying(true);
+            animationRef.current = requestAnimationFrame(processFrame);
+
+            // Monitor for video end or manual stop
+            const checkExport = async () => {
+                if (!session.isActive()) return;
+
+                if (video.ended) {
+                    const blob = await session.stopRecording();
+                    if (blob) {
+                        const filename = `tracked-video-${Date.now()}.mp4`;
+                        downloadBlob(blob, filename);
+                    }
+                    setIsExporting(false);
+                    setExportProgress({ phase: "complete", progress: 100, message: "Export complete!" });
+                    video.muted = false;
+                    setIsMuted(false);
+                } else {
+                    // Add frame and continue
+                    await session.addFrame();
+                    const progress = (video.currentTime / video.duration) * 100;
+                    setExportProgress({
+                        phase: "recording",
+                        progress,
+                        currentFrame: session.getFrameCount(),
+                        message: `Recording: ${Math.round(progress)}%`
+                    });
+                    requestAnimationFrame(checkExport);
+                }
+            };
+
+            requestAnimationFrame(checkExport);
+
+        } catch (error) {
+            console.error("Export failed:", error);
+            setErrorMessage(`Export failed: ${error}`);
+            setIsExporting(false);
+            setExportProgress({ phase: "error", progress: 0, message: `Export failed: ${error}` });
+        }
+    }, [processFrame]);
+
+    // Cancel export
+    const cancelExport = useCallback(async () => {
+        if (exportSessionRef.current) {
+            await exportSessionRef.current.cancel();
+        }
+        const video = videoRef.current;
+        if (video) {
+            video.pause();
+            video.muted = false;
+        }
+        setIsExporting(false);
+        setIsPlaying(false);
+        setIsMuted(false);
+        setExportProgress(null);
+        if (animationRef.current) {
+            cancelAnimationFrame(animationRef.current);
+        }
     }, []);
 
     return (
@@ -375,6 +509,7 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
                             <Button
                                 onClick={togglePlayback}
                                 variant={isPlaying ? "secondary" : "default"}
+                                disabled={isExporting}
                             >
                                 {isPlaying ? (
                                     <Pause className="mr-2 h-4 w-4" />
@@ -383,6 +518,45 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
                                 )}
                                 {isPlaying ? "Pause" : "Play"}
                             </Button>
+                        )}
+
+                        {/* Audio Toggle - for voiceover feature */}
+                        {videoSrc && !isCamera && (
+                            <Button
+                                variant="outline"
+                                size="icon"
+                                onClick={toggleMute}
+                                title={isMuted ? "Unmute audio" : "Mute audio"}
+                            >
+                                {isMuted ? (
+                                    <VolumeX className="h-4 w-4" />
+                                ) : (
+                                    <Volume2 className="h-4 w-4" />
+                                )}
+                            </Button>
+                        )}
+
+                        {/* Export Button */}
+                        {videoSrc && !isCamera && (
+                            isExporting ? (
+                                <Button
+                                    variant="destructive"
+                                    onClick={cancelExport}
+                                >
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Cancel Export
+                                </Button>
+                            ) : (
+                                <Button
+                                    variant="outline"
+                                    onClick={handleExport}
+                                    disabled={status === "loading-model"}
+                                    className="border-primary/50 text-primary hover:bg-primary/10"
+                                >
+                                    <Download className="mr-2 h-4 w-4" />
+                                    Export
+                                </Button>
+                            )
                         )}
                     </div>
                 </div>
@@ -397,6 +571,20 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
                             <span className="text-destructive">{errorMessage}</span>
                         )}
                     </span>
+                    {/* Export Progress */}
+                    {exportProgress && (
+                        <div className="flex items-center gap-2">
+                            <div className="w-32 h-2 bg-muted rounded-full overflow-hidden">
+                                <div
+                                    className="h-full bg-primary transition-all duration-300"
+                                    style={{ width: `${exportProgress.progress}%` }}
+                                />
+                            </div>
+                            <span className="text-xs">
+                                {exportProgress.message || `${Math.round(exportProgress.progress)}%`}
+                            </span>
+                        </div>
+                    )}
                 </div>
             </CardHeader>
 
@@ -418,7 +606,7 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
                             onEnded={handleVideoEnded}
                             className="w-full h-full object-contain max-h-[600px]"
                             playsInline
-                            muted
+                            muted={isMuted}
                         />
                         <canvas
                             ref={canvasRef}
