@@ -101,8 +101,19 @@ export class CanvasRenderer {
    * Draw bounding box or marker for a track based on style
    */
   private drawBoundingBox(track: Track): void {
-    const { x, y, width, height } = track.bbox;
+    let { x, y, width, height } = track.bbox;
     const style = this.config.boxStyle;
+
+    // Apply fixed box size if configured
+    if (this.config.fixedBoxSize > 0) {
+      const fixed = this.config.fixedBoxSize;
+      const cx = x + width / 2;
+      const cy = y + height / 2;
+      x = cx - fixed / 2;
+      y = cy - fixed / 2;
+      width = fixed;
+      height = fixed;
+    }
 
     if (style === "none") return;
 
@@ -221,7 +232,19 @@ export class CanvasRenderer {
   private drawLabel(track: Track): void {
     if (!this.config.showLabels) return;
 
-    const { x, y, width, height } = track.bbox;
+    let { x, y, width, height } = track.bbox;
+
+    // Apply fixed box size if configured to align label correctly
+    if (this.config.fixedBoxSize > 0) {
+      const fixed = this.config.fixedBoxSize;
+      const cxRaw = x + width / 2;
+      const cyRaw = y + height / 2;
+      x = cxRaw - fixed / 2;
+      y = cyRaw - fixed / 2;
+      width = fixed;
+      height = fixed;
+    }
+
     // Position depends on box mode
     const cx = x + width / 2;
     const cy = y + height / 2;
