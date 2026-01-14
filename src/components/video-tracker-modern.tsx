@@ -2,14 +2,7 @@
 
 import { AlertCircle, Camera, Download, Loader2, Pause, Play, Upload, Volume2, VolumeX } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-    Card,
-    CardContent,
-    CardHeader,
-    CardTitle,
-} from "@/components/ui/card";
 import {
     CanvasRenderer,
     type Detection,
@@ -447,38 +440,35 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
     }, []);
 
     return (
-        <Card
+        <div
             className={cn(
-                "w-full bg-card overflow-hidden border-border/50 shadow-xl",
+                "w-full bg-card overflow-hidden border border-border",
                 className,
             )}
         >
-            <CardHeader className="border-b border-border/50 pb-4">
-                <div className="flex items-center justify-between">
-                    <div>
-                        <CardTitle className="text-xl font-bold flex items-center gap-2">
-                            Video Analysis
-                            {status === "loading-model" && (
-                                <Badge variant="outline" className="gap-1">
-                                    <Loader2 className="h-3 w-3 animate-spin" /> Loading Model
-                                </Badge>
-                            )}
-                            {status === "error" && (
-                                <Badge variant="destructive" className="gap-1">
-                                    <AlertCircle className="h-3 w-3" /> Error
-                                </Badge>
-                            )}
-                            {status === "ready" && (
-                                <Badge
-                                    variant="secondary"
-                                    className="bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 border-emerald-500/20"
-                                >
-                                    Ready
-                                </Badge>
-                            )}
-                        </CardTitle>
+            <div className="border-b border-border p-4">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                        <span className="text-mono text-xs uppercase tracking-widest text-muted-foreground">
+                            Analysis
+                        </span>
+                        {status === "loading-model" && (
+                            <span className="text-mono text-xs uppercase tracking-wider flex items-center gap-2 text-muted-foreground">
+                                <Loader2 className="h-3 w-3 animate-spin" /> Loading
+                            </span>
+                        )}
+                        {status === "error" && (
+                            <span className="text-mono text-xs uppercase tracking-wider flex items-center gap-2 text-destructive">
+                                <AlertCircle className="h-3 w-3" /> Error
+                            </span>
+                        )}
+                        {status === "ready" && (
+                            <span className="text-mono text-xs uppercase tracking-wider text-foreground">
+                                [ Ready ]
+                            </span>
+                        )}
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                         <input
                             type="file"
                             accept="video/*"
@@ -489,49 +479,61 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
                         />
                         <Button
                             variant="outline"
+                            size="sm"
                             onClick={() => fileInputRef.current?.click()}
                             disabled={status === "loading-model"}
+                            className="text-mono text-[10px] uppercase tracking-wider h-8 border-border hover:bg-accent"
                         >
-                            <Upload className="mr-2 h-4 w-4" />
-                            Upload Video
+                            <Upload className="mr-2 h-3 w-3" />
+                            Upload
                         </Button>
                         <Button
-                            variant={isCamera ? "secondary" : "outline"}
+                            variant={isCamera ? "default" : "outline"}
+                            size="sm"
                             onClick={toggleCamera}
                             disabled={status === "loading-model"}
-                            className={cn(isCamera && "border-primary text-primary")}
+                            className={cn(
+                                "text-mono text-[10px] uppercase tracking-wider h-8",
+                                isCamera ? "bg-foreground text-background" : "border-border hover:bg-accent"
+                            )}
                         >
-                            <Camera className="mr-2 h-4 w-4" />
-                            {isCamera ? "Stop Stream" : "Live Camera"}
+                            <Camera className="mr-2 h-3 w-3" />
+                            {isCamera ? "Stop" : "Camera"}
                         </Button>
 
                         {(videoSrc || isCamera) && (
                             <Button
                                 onClick={togglePlayback}
-                                variant={isPlaying ? "secondary" : "default"}
+                                variant={isPlaying ? "default" : "outline"}
+                                size="sm"
                                 disabled={isExporting}
+                                className={cn(
+                                    "text-mono text-[10px] uppercase tracking-wider h-8",
+                                    isPlaying ? "bg-foreground text-background" : "border-border hover:bg-accent"
+                                )}
                             >
                                 {isPlaying ? (
-                                    <Pause className="mr-2 h-4 w-4" />
+                                    <Pause className="mr-2 h-3 w-3" />
                                 ) : (
-                                    <Play className="mr-2 h-4 w-4" />
+                                    <Play className="mr-2 h-3 w-3" />
                                 )}
                                 {isPlaying ? "Pause" : "Play"}
                             </Button>
                         )}
 
-                        {/* Audio Toggle - for voiceover feature */}
+                        {/* Audio Toggle */}
                         {videoSrc && !isCamera && (
                             <Button
                                 variant="outline"
-                                size="icon"
+                                size="sm"
                                 onClick={toggleMute}
                                 title={isMuted ? "Unmute audio" : "Mute audio"}
+                                className="text-mono text-[10px] uppercase h-8 w-8 p-0 border-border hover:bg-accent"
                             >
                                 {isMuted ? (
-                                    <VolumeX className="h-4 w-4" />
+                                    <VolumeX className="h-3 w-3" />
                                 ) : (
-                                    <Volume2 className="h-4 w-4" />
+                                    <Volume2 className="h-3 w-3" />
                                 )}
                             </Button>
                         )}
@@ -540,20 +542,23 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
                         {videoSrc && !isCamera && (
                             isExporting ? (
                                 <Button
-                                    variant="destructive"
+                                    variant="outline"
+                                    size="sm"
                                     onClick={cancelExport}
+                                    className="text-mono text-[10px] uppercase tracking-wider h-8 border-destructive text-destructive hover:bg-destructive/10"
                                 >
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    Cancel Export
+                                    <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                                    Cancel
                                 </Button>
                             ) : (
                                 <Button
                                     variant="outline"
+                                    size="sm"
                                     onClick={handleExport}
                                     disabled={status === "loading-model"}
-                                    className="border-primary/50 text-primary hover:bg-primary/10"
+                                    className="text-mono text-[10px] uppercase tracking-wider h-8 border-border hover:bg-accent"
                                 >
-                                    <Download className="mr-2 h-4 w-4" />
+                                    <Download className="mr-2 h-3 w-3" />
                                     Export
                                 </Button>
                             )
@@ -561,11 +566,11 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
                     </div>
                 </div>
 
-                {/* Status Message */}
-                <div className="mt-2 text-sm text-muted-foreground flex items-center justify-between">
-                    <span>
+                {/* Status Message / Export Progress */}
+                <div className="mt-3 flex items-center justify-between">
+                    <span className="text-mono text-[10px] uppercase text-muted-foreground">
                         {status === "ready" && !videoSrc && !isCamera
-                            ? "Upload a video or start camera to begin tracking"
+                            ? "[ Awaiting input ]"
                             : ""}
                         {errorMessage && (
                             <span className="text-destructive">{errorMessage}</span>
@@ -573,29 +578,31 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
                     </span>
                     {/* Export Progress */}
                     {exportProgress && (
-                        <div className="flex items-center gap-2">
-                            <div className="w-32 h-2 bg-muted rounded-full overflow-hidden">
+                        <div className="flex items-center gap-3">
+                            <div className="w-32 h-1 bg-accent overflow-hidden">
                                 <div
-                                    className="h-full bg-primary transition-all duration-300"
+                                    className="h-full bg-foreground transition-all duration-300"
                                     style={{ width: `${exportProgress.progress}%` }}
                                 />
                             </div>
-                            <span className="text-xs">
+                            <span className="text-mono text-[10px] uppercase text-muted-foreground">
                                 {exportProgress.message || `${Math.round(exportProgress.progress)}%`}
                             </span>
                         </div>
                     )}
                 </div>
-            </CardHeader>
+            </div>
 
-            <CardContent className="p-0 relative bg-black aspect-video flex items-center justify-center">
+            {/* Video Container */}
+            <div className="p-0 relative bg-black aspect-video flex items-center justify-center">
                 {!videoSrc && !isCamera ? (
                     <div
-                        className="text-center p-8 text-muted-foreground cursor-pointer hover:bg-white/5 transition-colors w-full h-full flex flex-col items-center justify-center"
+                        className="text-center p-8 cursor-pointer hover:bg-white/5 transition-colors w-full h-full flex flex-col items-center justify-center border border-dashed border-border/50 m-4"
                         onClick={() => fileInputRef.current?.click()}
-                    >                      <Upload className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                        <p>No video selected</p>
-                        <p className="text-sm mt-2 opacity-70">Click to upload</p>
+                    >
+                        <Upload className="h-8 w-8 mx-auto mb-4 text-muted-foreground" />
+                        <p className="text-mono text-xs uppercase tracking-widest text-muted-foreground">No video selected</p>
+                        <p className="text-mono text-[10px] uppercase mt-2 text-muted-foreground/70">[ Click to upload ]</p>
                     </div>
                 ) : (
                     <>
@@ -614,7 +621,7 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
                         />
                     </>
                 )}
-            </CardContent>
-        </Card>
+            </div>
+        </div>
     );
 }

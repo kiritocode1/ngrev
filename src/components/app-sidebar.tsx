@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity02Icon, Calendar02Icon, Home02Icon, Settings02Icon, Video02Icon } from "@hugeicons/core-free-icons";
+import { Activity02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
     Sidebar,
@@ -24,13 +24,13 @@ import { cn } from "@/lib/utils";
 
 
 const BOX_STYLES: { value: BoundingBoxStyle; label: string }[] = [
-    { value: "basic", label: "Basic" },
-    { value: "frame", label: "Frame" },
-    { value: "corner-l", label: "L-Frame" },
-    { value: "dash", label: "Dash" },
-    { value: "grid", label: "Grid" },
-    { value: "scope", label: "Scope" },
-    { value: "none", label: "None" },
+    { value: "basic", label: "BASIC" },
+    { value: "frame", label: "FRAME" },
+    { value: "corner-l", label: "L-FRAME" },
+    { value: "dash", label: "DASH" },
+    { value: "grid", label: "GRID" },
+    { value: "scope", label: "SCOPE" },
+    { value: "none", label: "NONE" },
 ];
 
 const PRESET_COLORS = [
@@ -68,27 +68,32 @@ export function AppSidebar() {
     } = useTracker();
 
     return (
-        <Sidebar collapsible="icon">
-            <SidebarHeader className="p-4 border-b border-sidebar-border">
-                <div className="flex items-center gap-2 font-bold text-xl px-2">
-                    <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center text-primary">
+        <Sidebar collapsible="icon" className="border-r border-border">
+            <SidebarHeader className="p-4 border-b border-border">
+                <div className="flex items-center gap-3 px-1">
+                    <div className="w-8 h-8 bg-foreground text-background flex items-center justify-center font-bold text-sm">
                         N
                     </div>
-                    <span className="group-data-[collapsible=icon]:hidden">ngrev</span>
+                    <div className="group-data-[collapsible=icon]:hidden">
+                        <span className="font-bold tracking-tight">NGREV</span>
+                        <span className="text-mono text-xs text-muted-foreground ml-2">v1.0</span>
+                    </div>
                 </div>
             </SidebarHeader>
-            <SidebarContent>
+            <SidebarContent className="p-0">
 
-                <SidebarGroup className="group-data-[collapsible=icon]:hidden">
-                    <SidebarGroupLabel>Tracker Configuration</SidebarGroupLabel>
-                    <SidebarGroupContent className="space-y-6 px-2 py-2">
+                <SidebarGroup className="group-data-[collapsible=icon]:hidden border-b border-border">
+                    <SidebarGroupLabel className="text-mono text-[10px] uppercase tracking-widest text-muted-foreground px-4 py-3">
+                        01. Detection Config
+                    </SidebarGroupLabel>
+                    <SidebarGroupContent className="space-y-4 px-4 pb-4">
 
                         {/* Detection Mode */}
                         <div className="space-y-2">
-                            <Label className="text-xs font-semibold text-muted-foreground uppercase">Mode</Label>
+                            <Label className="text-mono text-[10px] uppercase tracking-wider text-muted-foreground">Mode</Label>
                             <ToggleGroup
                                 value={[detectionMode]}
-                                onValueChange={(val: any) => {
+                                onValueChange={(val: string[]) => {
                                     if (Array.isArray(val)) {
                                         if (val.length > 1) {
                                             const newMode = val.find((v: string) => v !== detectionMode);
@@ -98,15 +103,15 @@ export function AppSidebar() {
                                         }
                                     }
                                 }}
-                                className="justify-start w-full bg-muted/50 p-1 rounded-lg"
+                                className="justify-start w-full bg-accent p-0.5"
                             >
-                                <ToggleGroupItem value="objects" aria-label="Objects" className="flex-1 text-xs data-[state=on]:bg-background data-[state=on]:shadow-sm">
+                                <ToggleGroupItem value="objects" aria-label="Objects" className="flex-1 text-mono text-[10px] uppercase data-[state=on]:bg-foreground data-[state=on]:text-background h-7">
                                     Objects
                                 </ToggleGroupItem>
-                                <ToggleGroupItem value="motion" aria-label="Motion" className="flex-1 text-xs data-[state=on]:bg-background data-[state=on]:shadow-sm">
+                                <ToggleGroupItem value="motion" aria-label="Motion" className="flex-1 text-mono text-[10px] uppercase data-[state=on]:bg-foreground data-[state=on]:text-background h-7">
                                     Motion
                                 </ToggleGroupItem>
-                                <ToggleGroupItem value="both" aria-label="Both" className="flex-1 text-xs data-[state=on]:bg-background data-[state=on]:shadow-sm">
+                                <ToggleGroupItem value="both" aria-label="Both" className="flex-1 text-mono text-[10px] uppercase data-[state=on]:bg-foreground data-[state=on]:text-background h-7">
                                     Both
                                 </ToggleGroupItem>
                             </ToggleGroup>
@@ -114,10 +119,10 @@ export function AppSidebar() {
 
                         {/* Object Threshold */}
                         {(detectionMode === "objects" || detectionMode === "both") && (
-                            <div className="space-y-3">
+                            <div className="space-y-2">
                                 <div className="flex justify-between items-center">
-                                    <Label className="text-xs">Object Threshold</Label>
-                                    <span className="text-xs text-muted-foreground font-mono">
+                                    <Label className="text-mono text-[10px] uppercase tracking-wider text-muted-foreground">Threshold</Label>
+                                    <span className="text-mono text-[10px] text-foreground">
                                         {detectionThreshold.toFixed(2)}
                                     </span>
                                 </div>
@@ -134,10 +139,10 @@ export function AppSidebar() {
 
                         {/* Motion Sensitivity */}
                         {(detectionMode === "motion" || detectionMode === "both") && (
-                            <div className="space-y-3">
+                            <div className="space-y-2">
                                 <div className="flex justify-between items-center">
-                                    <Label className="text-xs">Motion Sensitivity</Label>
-                                    <span className="text-xs text-muted-foreground font-mono">
+                                    <Label className="text-mono text-[10px] uppercase tracking-wider text-muted-foreground">Sensitivity</Label>
+                                    <span className="text-mono text-[10px] text-foreground">
                                         {motionThreshold}
                                     </span>
                                 </div>
@@ -153,10 +158,10 @@ export function AppSidebar() {
                         )}
 
                         {/* Min Blob Size */}
-                        <div className="space-y-3">
+                        <div className="space-y-2">
                             <div className="flex justify-between items-center">
-                                <Label className="text-xs">Min Size (px²)</Label>
-                                <span className="text-xs text-muted-foreground font-mono">
+                                <Label className="text-mono text-[10px] uppercase tracking-wider text-muted-foreground">Min Size (px²)</Label>
+                                <span className="text-mono text-[10px] text-foreground">
                                     {minBlobSize}
                                 </span>
                             </div>
@@ -171,10 +176,10 @@ export function AppSidebar() {
                         </div>
 
                         {/* Line Distance */}
-                        <div className="space-y-3">
+                        <div className="space-y-2">
                             <div className="flex justify-between items-center">
-                                <Label className="text-xs">Line Distance</Label>
-                                <span className="text-xs text-muted-foreground font-mono">
+                                <Label className="text-mono text-[10px] uppercase tracking-wider text-muted-foreground">Line Distance</Label>
+                                <span className="text-mono text-[10px] text-foreground">
                                     {config.maxLineDistance}px
                                 </span>
                             </div>
@@ -193,27 +198,27 @@ export function AppSidebar() {
                     </SidebarGroupContent>
                 </SidebarGroup>
 
-                <SidebarSep />
-
-                <SidebarGroup className="group-data-[collapsible=icon]:hidden">
-                    <SidebarGroupLabel>Visuals & Stats</SidebarGroupLabel>
-                    <SidebarGroupContent className="space-y-6 px-2 py-2">
+                <SidebarGroup className="group-data-[collapsible=icon]:hidden border-b border-border">
+                    <SidebarGroupLabel className="text-mono text-[10px] uppercase tracking-widest text-muted-foreground px-4 py-3">
+                        02. Visual Settings
+                    </SidebarGroupLabel>
+                    <SidebarGroupContent className="space-y-4 px-4 pb-4">
 
                         {/* Visualization Toggles */}
                         <div className="space-y-4">
                             <div className="space-y-2">
-                                <Label className="text-xs font-semibold text-muted-foreground uppercase">Region Style</Label>
-                                <div className="grid grid-cols-3 gap-2">
+                                <Label className="text-mono text-[10px] uppercase tracking-wider text-muted-foreground">Region Style</Label>
+                                <div className="grid grid-cols-3 gap-1">
                                     {BOX_STYLES.map((style) => (
                                         <Button
                                             key={style.value}
                                             variant={rendererConfig.boxStyle === style.value ? "default" : "outline"}
                                             size="sm"
                                             className={cn(
-                                                "h-8 text-[10px] px-1",
+                                                "h-7 text-mono text-[9px] px-1",
                                                 rendererConfig.boxStyle === style.value
-                                                    ? "bg-primary text-primary-foreground hover:bg-primary/90"
-                                                    : "bg-muted/30 hover:bg-muted/50 border-sidebar-border"
+                                                    ? "bg-foreground text-background hover:bg-foreground/90"
+                                                    : "bg-transparent hover:bg-accent border-border"
                                             )}
                                             onClick={() => setRendererConfig(prev => ({ ...prev, boxStyle: style.value }))}
                                         >
@@ -223,57 +228,56 @@ export function AppSidebar() {
                                 </div>
                             </div>
 
-                            <Separator className="bg-sidebar-border/50" />
+                            <Separator className="bg-border" />
 
-                            <div className="space-y-4">
+                            <div className="space-y-2">
                                 {/* Font Size & Position */}
                                 <div className="space-y-2">
-                                    <div className="flex justify-between items-center">
-                                        <Label className="text-xs font-semibold text-muted-foreground uppercase">Text Settings</Label>
-                                    </div>
+                                    <Label className="text-mono text-[10px] uppercase tracking-wider text-muted-foreground">Text Position</Label>
 
                                     {/* Position Toggle */}
                                     <ToggleGroup
                                         value={rendererConfig.textPosition ? [rendererConfig.textPosition] : ["top"]}
                                         onValueChange={(val) => {
                                             const newVal = Array.isArray(val) ? val[val.length - 1] : val;
-                                            if (newVal) setRendererConfig(prev => ({ ...prev, textPosition: newVal as any }));
+                                            if (newVal) setRendererConfig(prev => ({ ...prev, textPosition: newVal as "top" | "center" | "bottom" }));
                                         }}
-                                        className="justify-start w-full bg-muted/50 p-1 rounded-lg"
+                                        className="justify-start w-full bg-accent p-0.5"
                                     >
-                                        <ToggleGroupItem value="top" className="flex-1 text-[10px] h-7 data-[state=on]:bg-background data-[state=on]:shadow-sm">Top</ToggleGroupItem>
-                                        <ToggleGroupItem value="center" className="flex-1 text-[10px] h-7 data-[state=on]:bg-background data-[state=on]:shadow-sm">Center</ToggleGroupItem>
-                                        <ToggleGroupItem value="bottom" className="flex-1 text-[10px] h-7 data-[state=on]:bg-background data-[state=on]:shadow-sm">Bottom</ToggleGroupItem>
+                                        <ToggleGroupItem value="top" className="flex-1 text-mono text-[9px] h-6 data-[state=on]:bg-foreground data-[state=on]:text-background">TOP</ToggleGroupItem>
+                                        <ToggleGroupItem value="center" className="flex-1 text-mono text-[9px] h-6 data-[state=on]:bg-foreground data-[state=on]:text-background">CENTER</ToggleGroupItem>
+                                        <ToggleGroupItem value="bottom" className="flex-1 text-mono text-[9px] h-6 data-[state=on]:bg-foreground data-[state=on]:text-background">BOTTOM</ToggleGroupItem>
                                     </ToggleGroup>
 
                                     {/* Font Size Buttons */}
-                                    <div className="flex gap-1">
+                                    <div className="flex gap-1 mt-2">
                                         {FONT_SIZES.map(size => (
                                             <Button
                                                 key={size}
                                                 variant={rendererConfig.fontSize === size ? "default" : "outline"}
                                                 size="sm"
                                                 className={cn(
-                                                    "flex-1 h-7 text-[10px] px-0",
-                                                    rendererConfig.fontSize === size ? "bg-primary text-primary-foreground" : "bg-muted/30 border-sidebar-border"
+                                                    "flex-1 h-6 text-mono text-[9px] px-0",
+                                                    rendererConfig.fontSize === size
+                                                        ? "bg-foreground text-background"
+                                                        : "bg-transparent border-border"
                                                 )}
                                                 onClick={() => setRendererConfig(prev => ({ ...prev, fontSize: size }))}
                                             >
-                                                {size}px
+                                                {size}
                                             </Button>
                                         ))}
                                     </div>
                                 </div>
 
-                                <Separator className="bg-sidebar-border/50" />
+                                <Separator className="bg-border" />
 
                                 {/* Color Presets */}
                                 <div className="space-y-2">
                                     <div className="flex justify-between items-center">
-                                        <Label className="text-xs font-semibold text-muted-foreground uppercase">Color</Label>
+                                        <Label className="text-mono text-[10px] uppercase tracking-wider text-muted-foreground">Color</Label>
                                         <div className="flex items-center gap-2">
-                                            <Label className="text-[10px] text-muted-foreground">Custom</Label>
-                                            <div className="relative w-5 h-5 rounded-full overflow-hidden border border-border cursor-pointer bg-gradient-to-br from-red-500 via-green-500 to-blue-500">
+                                            <div className="relative w-4 h-4 overflow-hidden border border-border cursor-pointer bg-gradient-to-br from-red-500 via-green-500 to-blue-500">
                                                 <input
                                                     type="color"
                                                     value={rendererConfig.boxColor}
@@ -284,20 +288,23 @@ export function AppSidebar() {
                                         </div>
                                     </div>
 
-                                    <div className="grid grid-cols-5 gap-2">
+                                    <div className="grid grid-cols-5 gap-1">
                                         {PRESET_COLORS.map((color) => (
                                             <button
                                                 key={color}
+                                                type="button"
                                                 className={cn(
-                                                    "w-8 h-8 rounded-full border-2 transition-all hover:scale-110 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-sidebar",
-                                                    rendererConfig.boxColor === color ? "border-primary scale-110" : "border-transparent"
+                                                    "w-full aspect-square border transition-all hover:scale-105 focus:outline-none",
+                                                    rendererConfig.boxColor === color
+                                                        ? "border-foreground scale-105"
+                                                        : "border-border/50"
                                                 )}
                                                 style={{ backgroundColor: color }}
                                                 onClick={() => setRendererConfig(prev => ({ ...prev, boxColor: color }))}
                                             >
                                                 {rendererConfig.boxColor === color && (
-                                                    <span className="flex inset-0 items-center justify-center text-white drop-shadow-md">
-                                                        <HugeiconsIcon icon={Activity02Icon} className="w-4 h-4 mx-auto" />
+                                                    <span className="flex inset-0 items-center justify-center drop-shadow-md">
+                                                        <HugeiconsIcon icon={Activity02Icon} className="w-3 h-3 mx-auto" style={{ color: color === "#ffffff" || color === "#facc15" ? "#000" : "#fff" }} />
                                                     </span>
                                                 )}
                                             </button>
@@ -305,14 +312,14 @@ export function AppSidebar() {
                                     </div>
                                 </div>
 
-                                <Separator className="bg-sidebar-border/50" />
+                                <Separator className="bg-border" />
 
                                 {/* Fixed Size Slider */}
-                                <div className="space-y-1">
+                                <div className="space-y-2">
                                     <div className="flex justify-between items-center">
-                                        <Label className="text-[10px] text-muted-foreground">Fixed Size</Label>
-                                        <span className="text-[10px] text-muted-foreground font-mono">
-                                            {(rendererConfig.fixedBoxSize || 0) === 0 ? "Auto" : `${rendererConfig.fixedBoxSize}px`}
+                                        <Label className="text-mono text-[10px] uppercase tracking-wider text-muted-foreground">Fixed Size</Label>
+                                        <span className="text-mono text-[10px] text-foreground">
+                                            {(rendererConfig.fixedBoxSize || 0) === 0 ? "AUTO" : `${rendererConfig.fixedBoxSize}px`}
                                         </span>
                                     </div>
                                     <Slider
@@ -324,18 +331,18 @@ export function AppSidebar() {
                                             const newValue = Array.isArray(val) ? val[0] : val;
                                             setRendererConfig(prev => ({ ...prev, fixedBoxSize: newValue }));
                                         }}
-                                        className="py-2"
+                                        className="py-1"
                                     />
                                 </div>
 
-                                <Separator className="bg-sidebar-border/50" />
+                                <Separator className="bg-border" />
 
                                 {/* Stroke Widths */}
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-1">
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-2">
                                         <div className="flex justify-between items-center">
-                                            <Label className="text-[10px] text-muted-foreground">Box Stroke</Label>
-                                            <span className="text-[10px] text-muted-foreground font-mono">{rendererConfig.boxWidth}px</span>
+                                            <Label className="text-mono text-[9px] uppercase text-muted-foreground">Box</Label>
+                                            <span className="text-mono text-[9px] text-foreground">{rendererConfig.boxWidth}px</span>
                                         </div>
                                         <Slider
                                             value={[rendererConfig.boxWidth]}
@@ -346,13 +353,13 @@ export function AppSidebar() {
                                                 const newVal = Array.isArray(val) ? val[0] : val;
                                                 setRendererConfig(prev => ({ ...prev, boxWidth: newVal }));
                                             }}
-                                            className="py-2"
+                                            className="py-1"
                                         />
                                     </div>
-                                    <div className="space-y-1">
+                                    <div className="space-y-2">
                                         <div className="flex justify-between items-center">
-                                            <Label className="text-[10px] text-muted-foreground">Line Stroke</Label>
-                                            <span className="text-[10px] text-muted-foreground font-mono">{rendererConfig.lineWidth}px</span>
+                                            <Label className="text-mono text-[9px] uppercase text-muted-foreground">Line</Label>
+                                            <span className="text-mono text-[9px] text-foreground">{rendererConfig.lineWidth}px</span>
                                         </div>
                                         <Slider
                                             value={[rendererConfig.lineWidth]}
@@ -363,16 +370,16 @@ export function AppSidebar() {
                                                 const newVal = Array.isArray(val) ? val[0] : val;
                                                 setRendererConfig(prev => ({ ...prev, lineWidth: newVal }));
                                             }}
-                                            className="py-2"
+                                            className="py-1"
                                         />
                                     </div>
                                 </div>
                             </div>
 
-                            <Separator className="bg-sidebar-border/50" />
+                            <Separator className="bg-border" />
 
                             <div className="flex items-center justify-between">
-                                <Label className="text-xs">Show Lines</Label>
+                                <Label className="text-mono text-[10px] uppercase tracking-wider text-muted-foreground">Show Lines</Label>
                                 <Switch
                                     checked={rendererConfig.showLines}
                                     onCheckedChange={(c: boolean) => setRendererConfig(prev => ({ ...prev, showLines: c }))}
@@ -380,7 +387,7 @@ export function AppSidebar() {
                                 />
                             </div>
                             <div className="flex items-center justify-between">
-                                <Label className="text-xs">Labels & Scores</Label>
+                                <Label className="text-mono text-[10px] uppercase tracking-wider text-muted-foreground">Labels</Label>
                                 <Switch
                                     checked={rendererConfig.showLabels}
                                     onCheckedChange={(c: boolean) => setRendererConfig(prev => ({ ...prev, showLabels: c }))}
@@ -389,27 +396,29 @@ export function AppSidebar() {
                             </div>
                         </div>
 
-                        <Separator className="bg-sidebar-border/50" />
-
-                        {/* Stats Display */}
-                        <div className="space-y-3">
-                            <Label className="text-xs font-semibold text-muted-foreground uppercase">Live Stats</Label>
-                            <div className="grid grid-cols-2 gap-2">
-                                <div className="bg-sidebar-accent/50 rounded-md p-2 flex flex-col items-center justify-center border border-sidebar-border/50">
-                                    <span className="text-lg font-bold font-mono text-primary animate-pulse duration-1000">{stats.objectCount}</span>
-                                    <span className="text-[10px] text-muted-foreground uppercase">Objects</span>
-                                </div>
-                                <div className="bg-sidebar-accent/50 rounded-md p-2 flex flex-col items-center justify-center border border-sidebar-border/50">
-                                    <span className="text-lg font-bold font-mono">{stats.fps}</span>
-                                    <span className="text-[10px] text-muted-foreground uppercase">FPS</span>
-                                </div>
-                            </div>
-                        </div>
-
                     </SidebarGroupContent>
                 </SidebarGroup>
-            </SidebarContent >
+
+                <SidebarGroup className="group-data-[collapsible=icon]:hidden">
+                    <SidebarGroupLabel className="text-mono text-[10px] uppercase tracking-widest text-muted-foreground px-4 py-3">
+                        03. Live Stats
+                    </SidebarGroupLabel>
+                    <SidebarGroupContent className="px-4 pb-4">
+                        {/* Stats Display */}
+                        <div className="grid grid-cols-2 gap-2">
+                            <div className="bg-accent border border-border p-3 flex flex-col items-center justify-center">
+                                <span className="text-2xl font-bold text-mono text-foreground">{stats.objectCount}</span>
+                                <span className="text-mono text-[9px] uppercase text-muted-foreground">Objects</span>
+                            </div>
+                            <div className="bg-accent border border-border p-3 flex flex-col items-center justify-center">
+                                <span className="text-2xl font-bold text-mono text-foreground">{stats.fps}</span>
+                                <span className="text-mono text-[9px] uppercase text-muted-foreground">FPS</span>
+                            </div>
+                        </div>
+                    </SidebarGroupContent>
+                </SidebarGroup>
+            </SidebarContent>
             <SidebarRail />
-        </Sidebar >
+        </Sidebar>
     );
 }

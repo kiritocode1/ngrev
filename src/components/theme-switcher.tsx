@@ -28,16 +28,16 @@ export function ThemeSwitcher() {
   // Prevent hydration mismatch by not rendering until mounted
   if (!mounted) {
     return (
-      <div className="grid grid-cols-3 gap-1 bg-muted p-1 rounded-full border border-border aspect-square w-fit">
+      <div className="flex bg-accent border border-border">
         {themeOptions.map(({ value, icon: Icon, label }) => (
           <div
             key={value}
-            className="flex items-center justify-center p-2 rounded-full text-muted-foreground"
+            className="flex items-center justify-center p-2 text-muted-foreground"
           >
             <HugeiconsIcon
               icon={Icon}
               fill="currentColor"
-              className="w-4 h-4"
+              className="w-3 h-3"
             />
             <span className="sr-only">{label}</span>
           </div>
@@ -52,16 +52,16 @@ export function ThemeSwitcher() {
       onValueChange={(value) => setTheme(value as string)}
       className="flex items-center"
     >
-      <div className="flex bg-muted p-1 rounded-full border border-border">
+      <div className="flex bg-accent border border-border">
         {themeOptions.map(({ value, icon: Icon, label }) => (
           <Label
             key={value}
             htmlFor={value}
             className={cn(
-              "flex items-center justify-center w-10 h-10 rounded-full cursor-pointer transition-colors",
+              "flex items-center justify-center w-8 h-8 cursor-pointer transition-colors",
               theme === value
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground",
+                ? "bg-foreground text-background"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent",
             )}
           >
             <RadioGroupItem
@@ -72,7 +72,7 @@ export function ThemeSwitcher() {
             <HugeiconsIcon
               icon={Icon}
               fill="currentColor"
-              className="w-6 h-6"
+              className="w-3 h-3"
             />
             <span className="sr-only">{label}</span>
           </Label>
