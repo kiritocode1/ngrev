@@ -234,7 +234,7 @@ export function AppSidebar() {
 
                                     {/* Position Toggle */}
                                     <ToggleGroup
-                                    value={rendererConfig.textPosition ? [rendererConfig.textPosition] : ["top"]}
+                                        value={rendererConfig.textPosition ? [rendererConfig.textPosition] : ["top"]}
                                         onValueChange={(val) => {
                                             const newVal = Array.isArray(val) ? val[val.length - 1] : val;
                                             if (newVal) setRendererConfig(prev => ({ ...prev, textPosition: newVal as any }));
@@ -326,6 +326,46 @@ export function AppSidebar() {
                                         }}
                                         className="py-2"
                                     />
+                                </div>
+
+                                <Separator className="bg-sidebar-border/50" />
+
+                                {/* Stroke Widths */}
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <div className="flex justify-between items-center">
+                                            <Label className="text-[10px] text-muted-foreground">Box Stroke</Label>
+                                            <span className="text-[10px] text-muted-foreground font-mono">{rendererConfig.boxWidth}px</span>
+                                        </div>
+                                        <Slider
+                                            value={[rendererConfig.boxWidth]}
+                                            min={0}
+                                            max={10}
+                                            step={1}
+                                            onValueChange={(val) => {
+                                                const newVal = Array.isArray(val) ? val[0] : val;
+                                                setRendererConfig(prev => ({ ...prev, boxWidth: newVal }));
+                                            }}
+                                            className="py-2"
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <div className="flex justify-between items-center">
+                                            <Label className="text-[10px] text-muted-foreground">Line Stroke</Label>
+                                            <span className="text-[10px] text-muted-foreground font-mono">{rendererConfig.lineWidth}px</span>
+                                        </div>
+                                        <Slider
+                                            value={[rendererConfig.lineWidth]}
+                                            min={0}
+                                            max={10}
+                                            step={1}
+                                            onValueChange={(val) => {
+                                                const newVal = Array.isArray(val) ? val[0] : val;
+                                                setRendererConfig(prev => ({ ...prev, lineWidth: newVal }));
+                                            }}
+                                            className="py-2"
+                                        />
+                                    </div>
                                 </div>
                             </div>
 

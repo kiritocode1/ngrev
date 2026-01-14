@@ -61,6 +61,7 @@ export class CanvasRenderer {
    * Draw constellation lines connecting nearby tracks
    */
   private drawConstellationLines(tracks: Track[], maxDistance: number): void {
+    if (this.config.lineWidth <= 0) return;
     this.ctx.lineWidth = this.config.lineWidth;
 
     for (let i = 0; i < tracks.length; i++) {
@@ -123,20 +124,22 @@ export class CanvasRenderer {
 
     switch (style) {
       case "basic":
-        this.ctx.strokeRect(x, y, width, height);
+        if (this.config.boxWidth > 0) this.ctx.strokeRect(x, y, width, height);
         this.ctx.fillStyle = this.config.boxColor + "20"; // 12% opacity
         this.ctx.fillRect(x, y, width, height);
         break;
 
       case "frame":
-        this.ctx.strokeRect(x, y, width, height);
+        if (this.config.boxWidth > 0) this.ctx.strokeRect(x, y, width, height);
         // Frame implies no fill, maybe slightly thicker or distinct
         break;
 
       case "dash":
-        this.ctx.setLineDash([4, 4]);
-        this.ctx.strokeRect(x, y, width, height);
-        this.ctx.setLineDash([]);
+        if (this.config.boxWidth > 0) {
+          this.ctx.setLineDash([4, 4]);
+          this.ctx.strokeRect(x, y, width, height);
+          this.ctx.setLineDash([]);
+        }
         break;
 
       case "corner-l":
@@ -144,7 +147,7 @@ export class CanvasRenderer {
         break;
 
       case "grid":
-        this.ctx.strokeRect(x, y, width, height);
+        if (this.config.boxWidth > 0) this.ctx.strokeRect(x, y, width, height);
         this.drawGridLines(x, y, width, height);
         break;
 
