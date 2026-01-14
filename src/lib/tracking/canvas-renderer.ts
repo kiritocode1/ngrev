@@ -261,18 +261,31 @@ export class CanvasRenderer {
 
     if (!label) return;
 
-    this.ctx.font = this.config.labelFont;
+    if (!label) return;
+
+    // Use configurable font size
+    const fontSize = this.config.fontSize || 12;
+    this.ctx.font = `${fontSize}px Inter, system-ui, sans-serif`;
     this.ctx.fillStyle = "#ffffff";
     this.ctx.textAlign = "center";
-    this.ctx.textBaseline = "bottom";
 
-    // If full box/frame style, draw label on top edge
-    if (this.config.boxStyle !== "none" && this.config.boxStyle !== "scope") {
+    const pos = this.config.textPosition || "top";
+
+    if (pos === "center") {
+      this.ctx.textBaseline = "middle";
+      this.ctx.fillText(label, cx, cy);
+      return;
+    }
+
+    this.ctx.textBaseline = pos === "top" ? "bottom" : "top";
+    const offset = (this.config.boxStyle === "scope" ? 20 : 4) + (fontSize / 4);
+
+    if (pos === "top") {
+      // Draw above
       this.ctx.fillText(label, cx, y - 4);
     } else {
-      // If none or scope (center oriented), draw near center
-      const size = 12;
-      this.ctx.fillText(label, cx, cy - size / 2 - 2 + (this.config.boxStyle === "scope" ? -20 : 0));
+      // Draw below
+      this.ctx.fillText(label, cx, y + height + 4);
     }
   }
 

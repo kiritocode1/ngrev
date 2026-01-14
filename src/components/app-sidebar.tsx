@@ -9,9 +9,6 @@ import {
     SidebarGroupContent,
     SidebarGroupLabel,
     SidebarHeader,
-    SidebarMenu,
-    SidebarMenuButton,
-    SidebarMenuItem,
     SidebarRail,
     SidebarSeparator as SidebarSep,
 } from "@/components/ui/sidebar";
@@ -35,6 +32,21 @@ const BOX_STYLES: { value: BoundingBoxStyle; label: string }[] = [
     { value: "scope", label: "Scope" },
     { value: "none", label: "None" },
 ];
+
+const PRESET_COLORS = [
+    "#ffffff", // White
+    "#ef4444", // Red
+    "#f97316", // Orange
+    "#facc15", // Yellow
+    "#22c55e", // Green
+    "#06b6d4", // Cyan
+    "#3b82f6", // Blue
+    "#a855f7", // Purple
+    "#ec4899", // Pink
+    "#000000", // Black
+];
+
+const FONT_SIZES = [10, 12, 14, 16, 18, 20];
 
 
 
@@ -208,6 +220,112 @@ export function AppSidebar() {
                                             {style.label}
                                         </Button>
                                     ))}
+                                </div>
+                            </div>
+
+                            <Separator className="bg-sidebar-border/50" />
+
+                            <div className="space-y-4">
+                                {/* Font Size & Position */}
+                                <div className="space-y-2">
+                                    <div className="flex justify-between items-center">
+                                        <Label className="text-xs font-semibold text-muted-foreground uppercase">Text Settings</Label>
+                                    </div>
+
+                                    {/* Position Toggle */}
+                                    <ToggleGroup
+                                        value={rendererConfig.textPosition ? [rendererConfig.textPosition] : ["top"]}
+                                        onValueChange={(val) => {
+                                            const newVal = Array.isArray(val) ? val[val.length - 1] : val;
+                                            if (newVal) setRendererConfig(prev => ({ ...prev, textPosition: newVal as any }));
+                                        }}
+                                        className="justify-start w-full bg-muted/50 p-1 rounded-lg"
+                                    >
+                                        <ToggleGroupItem value="top" className="flex-1 text-[10px] h-7 data-[state=on]:bg-background data-[state=on]:shadow-sm">Top</ToggleGroupItem>
+                                        <ToggleGroupItem value="center" className="flex-1 text-[10px] h-7 data-[state=on]:bg-background data-[state=on]:shadow-sm">Center</ToggleGroupItem>
+                                        <ToggleGroupItem value="bottom" className="flex-1 text-[10px] h-7 data-[state=on]:bg-background data-[state=on]:shadow-sm">Bottom</ToggleGroupItem>
+                                    </ToggleGroup>
+
+                                    {/* Font Size Buttons */}
+                                    <div className="flex gap-1">
+                                        {FONT_SIZES.map(size => (
+                                            <Button
+                                                key={size}
+                                                variant={rendererConfig.fontSize === size ? "default" : "outline"}
+                                                size="sm"
+                                                className={cn(
+                                                    "flex-1 h-7 text-[10px] px-0",
+                                                    rendererConfig.fontSize === size ? "bg-primary text-primary-foreground" : "bg-muted/30 border-sidebar-border"
+                                                )}
+                                                onClick={() => setRendererConfig(prev => ({ ...prev, fontSize: size }))}
+                                            >
+                                                {size}px
+                                            </Button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <Separator className="bg-sidebar-border/50" />
+
+                                {/* Color Presets */}
+                                <div className="space-y-2">
+                                    <div className="flex justify-between items-center">
+                                        <Label className="text-xs font-semibold text-muted-foreground uppercase">Color</Label>
+                                        <div className="flex items-center gap-2">
+                                            <Label className="text-[10px] text-muted-foreground">Custom</Label>
+                                            <div className="relative w-5 h-5 rounded-full overflow-hidden border border-border cursor-pointer bg-gradient-to-br from-red-500 via-green-500 to-blue-500">
+                                                <input
+                                                    type="color"
+                                                    value={rendererConfig.boxColor}
+                                                    onChange={(e) => setRendererConfig(prev => ({ ...prev, boxColor: e.target.value }))}
+                                                    className="absolute inset-0 opacity-0 cursor-pointer"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-5 gap-2">
+                                        {PRESET_COLORS.map((color) => (
+                                            <button
+                                                key={color}
+                                                className={cn(
+                                                    "w-8 h-8 rounded-full border-2 transition-all hover:scale-110 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-sidebar",
+                                                    rendererConfig.boxColor === color ? "border-primary scale-110" : "border-transparent"
+                                                )}
+                                                style={{ backgroundColor: color }}
+                                                onClick={() => setRendererConfig(prev => ({ ...prev, boxColor: color }))}
+                                            >
+                                                {rendererConfig.boxColor === color && (
+                                                    <span className="flex inset-0 items-center justify-center text-white drop-shadow-md">
+                                                        <HugeiconsIcon icon={Activity02Icon} className="w-4 h-4 mx-auto" />
+                                                    </span>
+                                                )}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <Separator className="bg-sidebar-border/50" />
+
+                                {/* Fixed Size Slider */}
+                                <div className="space-y-1">
+                                    <div className="flex justify-between items-center">
+                                        <Label className="text-[10px] text-muted-foreground">Fixed Size</Label>
+                                        <span className="text-[10px] text-muted-foreground font-mono">
+                                            {(rendererConfig.fixedBoxSize || 0) === 0 ? "Auto" : `${rendererConfig.fixedBoxSize}px`}
+                                        </span>
+                                    </div>
+                                    <Slider
+                                        value={[rendererConfig.fixedBoxSize || 0]}
+                                        min={0}
+                                        max={200}
+                                        step={5}
+                                        onValueChange={(val) => {
+                                            const newValue = Array.isArray(val) ? val[0] : val;
+                                            setRendererConfig(prev => ({ ...prev, fixedBoxSize: newValue }));
+                                        }}
+                                        className="py-2"
+                                    />
                                 </div>
                             </div>
 

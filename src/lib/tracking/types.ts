@@ -70,6 +70,10 @@ export interface RendererConfig {
   fixedBoxSize: number;
   /** Show text labels (IDs, scores) */
   showLabels: boolean;
+  /** Font size in pixels */
+  fontSize: number;
+  /** Position of the label relative to the box */
+  textPosition: "top" | "bottom" | "center";
 }
 
 /** Default tracker configuration */
@@ -94,4 +98,6 @@ export const DEFAULT_RENDERER_CONFIG: RendererConfig = {
   boxStyle: "basic", // Default to basic box
   fixedBoxSize: 0, // 0 = Auto
   showLabels: true,
+  fontSize: 12,
+  textPosition: "top",
 };
