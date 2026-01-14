@@ -7,347 +7,354 @@
  * Supports both ML-based object detection AND motion detection
  */
 
-import { useRef, useState, useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
-    loadModel,
-    isModelReady,
-    detect,
-    Tracker,
-    CanvasRenderer,
-    MotionDetector,
-    type TrackerConfig,
-    type Detection,
-    DEFAULT_TRACKER_CONFIG,
+  CanvasRenderer,
+  DEFAULT_TRACKER_CONFIG,
+  type Detection,
+  detect,
+  isModelReady,
+  loadModel,
+  MotionDetector,
+  Tracker,
+  type TrackerConfig,
 } from "@/lib/tracking";
 
 interface VideoTrackerProps {
-    className?: string;
+  className?: string;
 }
 
 type Status = "idle" | "loading-model" | "ready" | "processing" | "error";
 type DetectionMode = "objects" | "motion" | "both";
 
 export function VideoTracker({ className = "" }: VideoTrackerProps) {
-    const videoRef = useRef<HTMLVideoElement>(null);
-    const canvasRef = useRef<HTMLCanvasElement>(null);
-    const trackerRef = useRef<Tracker | null>(null);
-    const rendererRef = useRef<CanvasRenderer | null>(null);
-    const motionDetectorRef = useRef<MotionDetector | null>(null);
-    const animationRef = useRef<number | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const trackerRef = useRef<Tracker | null>(null);
+  const rendererRef = useRef<CanvasRenderer | null>(null);
+  const motionDetectorRef = useRef<MotionDetector | null>(null);
+  const animationRef = useRef<number | null>(null);
 
-    const [status, setStatus] = useState<Status>("idle");
-    const [errorMessage, setErrorMessage] = useState<string>("");
-    const [isPlaying, setIsPlaying] = useState(false);
-    const [videoSrc, setVideoSrc] = useState<string>("");
-    const [config, setConfig] = useState<TrackerConfig>(DEFAULT_TRACKER_CONFIG);
-    const [detectionThreshold, setDetectionThreshold] = useState(0.5);
-    const [detectionMode, setDetectionMode] = useState<DetectionMode>("both");
-    const [motionThreshold, setMotionThreshold] = useState(25);
-    const [minBlobSize, setMinBlobSize] = useState(300);
+  const [status, setStatus] = useState<Status>("idle");
+  const [errorMessage, setErrorMessage] = useState<string>("");
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [videoSrc, setVideoSrc] = useState<string>("");
+  const [config, setConfig] = useState<TrackerConfig>(DEFAULT_TRACKER_CONFIG);
+  const [detectionThreshold, setDetectionThreshold] = useState(0.5);
+  const [detectionMode, setDetectionMode] = useState<DetectionMode>("both");
+  const [motionThreshold, setMotionThreshold] = useState(25);
+  const [minBlobSize, setMinBlobSize] = useState(300);
 
-    // Initialize model on mount
-    useEffect(() => {
-        async function init() {
-            setStatus("loading-model");
-            try {
-                await loadModel();
-                trackerRef.current = new Tracker(config);
-                motionDetectorRef.current = new MotionDetector({
-                    threshold: motionThreshold,
-                    minBlobArea: minBlobSize,
-                });
-                setStatus("ready");
-            } catch (error) {
-                setStatus("error");
-                setErrorMessage(
-                    error instanceof Error ? error.message : "Failed to load model"
-                );
-            }
+  // Initialize model on mount
+  useEffect(() => {
+    async function init() {
+      setStatus("loading-model");
+      try {
+        await loadModel();
+        trackerRef.current = new Tracker(config);
+        motionDetectorRef.current = new MotionDetector({
+          threshold: motionThreshold,
+          minBlobArea: minBlobSize,
+        });
+        setStatus("ready");
+      } catch (error) {
+        setStatus("error");
+        setErrorMessage(
+          error instanceof Error ? error.message : "Failed to load model",
+        );
+      }
+    }
+    init();
+
+    return () => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    };
+  }, []);
+
+  // Update tracker config when it changes
+  useEffect(() => {
+    if (trackerRef.current) {
+      trackerRef.current.setConfig(config);
+    }
+  }, [config]);
+
+  // Update motion detector config
+  useEffect(() => {
+    if (motionDetectorRef.current) {
+      motionDetectorRef.current.setConfig({
+        threshold: motionThreshold,
+        minBlobArea: minBlobSize,
+      });
+    }
+  }, [motionThreshold, minBlobSize]);
+
+  // Handle video file selection
+  const handleFileChange = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+
+      // Revoke old URL if exists
+      if (videoSrc) {
+        URL.revokeObjectURL(videoSrc);
+      }
+
+      const url = URL.createObjectURL(file);
+      setVideoSrc(url);
+      setIsPlaying(false);
+
+      // Reset tracker and motion detector
+      if (trackerRef.current) {
+        trackerRef.current.reset();
+      }
+      if (motionDetectorRef.current) {
+        motionDetectorRef.current.reset();
+      }
+    },
+    [videoSrc],
+  );
+
+  // Initialize canvas when video loads
+  const handleVideoLoaded = useCallback(() => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas) return;
+
+    // Match canvas size to video
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    // Initialize renderer
+    rendererRef.current = new CanvasRenderer(canvas);
+
+    // Reset motion detector for new video
+    if (motionDetectorRef.current) {
+      motionDetectorRef.current.reset();
+    }
+  }, []);
+
+  // Main processing loop
+  const processFrame = useCallback(async () => {
+    const video = videoRef.current;
+    if (!video || video.paused || video.ended) {
+      return;
+    }
+
+    try {
+      let allDetections: Detection[] = [];
+
+      // Run object detection (COCO-SSD)
+      if (
+        (detectionMode === "objects" || detectionMode === "both") &&
+        isModelReady()
+      ) {
+        const objectDetections = await detect(
+          video,
+          detectionThreshold,
+          minBlobSize,
+        );
+        allDetections = [...allDetections, ...objectDetections];
+      }
+
+      // Run motion detection
+      if (
+        (detectionMode === "motion" || detectionMode === "both") &&
+        motionDetectorRef.current
+      ) {
+        const motionDetections = motionDetectorRef.current.detect(video);
+        allDetections = [...allDetections, ...motionDetections];
+      }
+
+      // Update tracker with combined detections
+      if (trackerRef.current) {
+        const tracks = trackerRef.current.update(allDetections);
+
+        // Render visualization
+        if (rendererRef.current) {
+          rendererRef.current.render(tracks, config.maxLineDistance);
         }
-        init();
+      }
+    } catch (error) {
+      console.error("Detection error:", error);
+    }
 
-        return () => {
-            if (animationRef.current) {
-                cancelAnimationFrame(animationRef.current);
+    // Continue loop
+    animationRef.current = requestAnimationFrame(processFrame);
+  }, [detectionThreshold, detectionMode, config.maxLineDistance]);
+
+  // Handle play/pause
+  const togglePlayback = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (video.paused) {
+      video.play();
+      setIsPlaying(true);
+      animationRef.current = requestAnimationFrame(processFrame);
+    } else {
+      video.pause();
+      setIsPlaying(false);
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    }
+  }, [processFrame]);
+
+  // Handle video ended
+  const handleVideoEnded = useCallback(() => {
+    setIsPlaying(false);
+    if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current);
+    }
+  }, []);
+
+  return (
+    <div className={`video-tracker ${className}`}>
+      {/* Status indicator */}
+      <div className="status-bar">
+        {status === "loading-model" && (
+          <div className="status loading">
+            <span className="spinner" />
+            Loading AI Model...
+          </div>
+        )}
+        {status === "error" && (
+          <div className="status error">Error: {errorMessage}</div>
+        )}
+        {status === "ready" && !videoSrc && (
+          <div className="status ready">
+            Model ready. Upload a video to begin.
+          </div>
+        )}
+      </div>
+
+      {/* Controls */}
+      <div className="controls">
+        <label className="file-input">
+          <input
+            type="file"
+            accept="video/*"
+            onChange={handleFileChange}
+            disabled={status === "loading-model"}
+          />
+          <span className="file-button">Choose Video</span>
+        </label>
+
+        {videoSrc && (
+          <button
+            type="button"
+            onClick={togglePlayback}
+            className="play-button"
+          >
+            {isPlaying ? "⏸ Pause" : "▶ Play"}
+          </button>
+        )}
+      </div>
+
+      {/* Detection Mode Toggle */}
+      <div className="mode-toggle">
+        <span className="mode-label">Detection Mode:</span>
+        <div className="mode-buttons">
+          <button
+            type="button"
+            className={`mode-btn ${detectionMode === "objects" ? "active" : ""}`}
+            onClick={() => setDetectionMode("objects")}
+          >
+            🎯 Objects
+          </button>
+          <button
+            type="button"
+            className={`mode-btn ${detectionMode === "motion" ? "active" : ""}`}
+            onClick={() => setDetectionMode("motion")}
+          >
+            💨 Motion
+          </button>
+          <button
+            type="button"
+            className={`mode-btn ${detectionMode === "both" ? "active" : ""}`}
+            onClick={() => setDetectionMode("both")}
+          >
+            ⚡ Both
+          </button>
+        </div>
+      </div>
+
+      {/* Settings */}
+      <div className="settings">
+        {(detectionMode === "objects" || detectionMode === "both") && (
+          <label>
+            Object Threshold: {detectionThreshold.toFixed(2)}
+            <input
+              type="range"
+              min="0.1"
+              max="0.9"
+              step="0.05"
+              value={detectionThreshold}
+              onChange={(e) => setDetectionThreshold(Number(e.target.value))}
+            />
+          </label>
+        )}
+
+        {(detectionMode === "motion" || detectionMode === "both") && (
+          <label>
+            Motion Sensitivity: {motionThreshold}
+            <input
+              type="range"
+              min="10"
+              max="80"
+              step="5"
+              value={motionThreshold}
+              onChange={(e) => setMotionThreshold(Number(e.target.value))}
+            />
+          </label>
+        )}
+
+        <label>
+          Min Size: {minBlobSize}px²
+          <input
+            type="range"
+            min="100"
+            max="2000"
+            step="100"
+            value={minBlobSize}
+            onChange={(e) => setMinBlobSize(Number(e.target.value))}
+          />
+        </label>
+
+        <label>
+          Line Distance: {config.maxLineDistance}px
+          <input
+            type="range"
+            min="50"
+            max="500"
+            step="25"
+            value={config.maxLineDistance}
+            onChange={(e) =>
+              setConfig((c) => ({
+                ...c,
+                maxLineDistance: Number(e.target.value),
+              }))
             }
-        };
-    }, []);
+          />
+        </label>
+      </div>
 
-    // Update tracker config when it changes
-    useEffect(() => {
-        if (trackerRef.current) {
-            trackerRef.current.setConfig(config);
-        }
-    }, [config]);
+      {/* Video container */}
+      <div className="video-container">
+        <video
+          ref={videoRef}
+          src={videoSrc}
+          onLoadedMetadata={handleVideoLoaded}
+          onEnded={handleVideoEnded}
+          playsInline
+          muted
+        />
+        <canvas ref={canvasRef} className="overlay-canvas" />
+      </div>
 
-    // Update motion detector config
-    useEffect(() => {
-        if (motionDetectorRef.current) {
-            motionDetectorRef.current.setConfig({
-                threshold: motionThreshold,
-                minBlobArea: minBlobSize,
-            });
-        }
-    }, [motionThreshold, minBlobSize]);
-
-    // Handle video file selection
-    const handleFileChange = useCallback(
-        (event: React.ChangeEvent<HTMLInputElement>) => {
-            const file = event.target.files?.[0];
-            if (!file) return;
-
-            // Revoke old URL if exists
-            if (videoSrc) {
-                URL.revokeObjectURL(videoSrc);
-            }
-
-            const url = URL.createObjectURL(file);
-            setVideoSrc(url);
-            setIsPlaying(false);
-
-            // Reset tracker and motion detector
-            if (trackerRef.current) {
-                trackerRef.current.reset();
-            }
-            if (motionDetectorRef.current) {
-                motionDetectorRef.current.reset();
-            }
-        },
-        [videoSrc]
-    );
-
-    // Initialize canvas when video loads
-    const handleVideoLoaded = useCallback(() => {
-        const video = videoRef.current;
-        const canvas = canvasRef.current;
-        if (!video || !canvas) return;
-
-        // Match canvas size to video
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-
-        // Initialize renderer
-        rendererRef.current = new CanvasRenderer(canvas);
-
-        // Reset motion detector for new video
-        if (motionDetectorRef.current) {
-            motionDetectorRef.current.reset();
-        }
-    }, []);
-
-    // Main processing loop
-    const processFrame = useCallback(async () => {
-        const video = videoRef.current;
-        if (!video || video.paused || video.ended) {
-            return;
-        }
-
-        try {
-            let allDetections: Detection[] = [];
-
-            // Run object detection (COCO-SSD)
-            if (
-                (detectionMode === "objects" || detectionMode === "both") &&
-                isModelReady()
-            ) {
-                const objectDetections = await detect(video, detectionThreshold, minBlobSize);
-                allDetections = [...allDetections, ...objectDetections];
-            }
-
-            // Run motion detection
-            if (
-                (detectionMode === "motion" || detectionMode === "both") &&
-                motionDetectorRef.current
-            ) {
-                const motionDetections = motionDetectorRef.current.detect(video);
-                allDetections = [...allDetections, ...motionDetections];
-            }
-
-            // Update tracker with combined detections
-            if (trackerRef.current) {
-                const tracks = trackerRef.current.update(allDetections);
-
-                // Render visualization
-                if (rendererRef.current) {
-                    rendererRef.current.render(tracks, config.maxLineDistance);
-                }
-            }
-        } catch (error) {
-            console.error("Detection error:", error);
-        }
-
-        // Continue loop
-        animationRef.current = requestAnimationFrame(processFrame);
-    }, [detectionThreshold, detectionMode, config.maxLineDistance]);
-
-    // Handle play/pause
-    const togglePlayback = useCallback(() => {
-        const video = videoRef.current;
-        if (!video) return;
-
-        if (video.paused) {
-            video.play();
-            setIsPlaying(true);
-            animationRef.current = requestAnimationFrame(processFrame);
-        } else {
-            video.pause();
-            setIsPlaying(false);
-            if (animationRef.current) {
-                cancelAnimationFrame(animationRef.current);
-            }
-        }
-    }, [processFrame]);
-
-    // Handle video ended
-    const handleVideoEnded = useCallback(() => {
-        setIsPlaying(false);
-        if (animationRef.current) {
-            cancelAnimationFrame(animationRef.current);
-        }
-    }, []);
-
-    return (
-        <div className={`video-tracker ${className}`}>
-            {/* Status indicator */}
-            <div className="status-bar">
-                {status === "loading-model" && (
-                    <div className="status loading">
-                        <span className="spinner" />
-                        Loading AI Model...
-                    </div>
-                )}
-                {status === "error" && (
-                    <div className="status error">Error: {errorMessage}</div>
-                )}
-                {status === "ready" && !videoSrc && (
-                    <div className="status ready">
-                        Model ready. Upload a video to begin.
-                    </div>
-                )}
-            </div>
-
-            {/* Controls */}
-            <div className="controls">
-                <label className="file-input">
-                    <input
-                        type="file"
-                        accept="video/*"
-                        onChange={handleFileChange}
-                        disabled={status === "loading-model"}
-                    />
-                    <span className="file-button">Choose Video</span>
-                </label>
-
-                {videoSrc && (
-                    <button
-                        type="button"
-                        onClick={togglePlayback}
-                        className="play-button"
-                    >
-                        {isPlaying ? "⏸ Pause" : "▶ Play"}
-                    </button>
-                )}
-            </div>
-
-            {/* Detection Mode Toggle */}
-            <div className="mode-toggle">
-                <span className="mode-label">Detection Mode:</span>
-                <div className="mode-buttons">
-                    <button
-                        type="button"
-                        className={`mode-btn ${detectionMode === "objects" ? "active" : ""}`}
-                        onClick={() => setDetectionMode("objects")}
-                    >
-                        🎯 Objects
-                    </button>
-                    <button
-                        type="button"
-                        className={`mode-btn ${detectionMode === "motion" ? "active" : ""}`}
-                        onClick={() => setDetectionMode("motion")}
-                    >
-                        💨 Motion
-                    </button>
-                    <button
-                        type="button"
-                        className={`mode-btn ${detectionMode === "both" ? "active" : ""}`}
-                        onClick={() => setDetectionMode("both")}
-                    >
-                        ⚡ Both
-                    </button>
-                </div>
-            </div>
-
-            {/* Settings */}
-            <div className="settings">
-                {(detectionMode === "objects" || detectionMode === "both") && (
-                    <label>
-                        Object Threshold: {detectionThreshold.toFixed(2)}
-                        <input
-                            type="range"
-                            min="0.1"
-                            max="0.9"
-                            step="0.05"
-                            value={detectionThreshold}
-                            onChange={(e) => setDetectionThreshold(Number(e.target.value))}
-                        />
-                    </label>
-                )}
-
-                {(detectionMode === "motion" || detectionMode === "both") && (
-                    <label>
-                        Motion Sensitivity: {motionThreshold}
-                        <input
-                            type="range"
-                            min="10"
-                            max="80"
-                            step="5"
-                            value={motionThreshold}
-                            onChange={(e) => setMotionThreshold(Number(e.target.value))}
-                        />
-                    </label>
-                )}
-
-                <label>
-                    Min Size: {minBlobSize}px²
-                    <input
-                        type="range"
-                        min="100"
-                        max="2000"
-                        step="100"
-                        value={minBlobSize}
-                        onChange={(e) => setMinBlobSize(Number(e.target.value))}
-                    />
-                </label>
-
-                <label>
-                    Line Distance: {config.maxLineDistance}px
-                    <input
-                        type="range"
-                        min="50"
-                        max="500"
-                        step="25"
-                        value={config.maxLineDistance}
-                        onChange={(e) =>
-                            setConfig((c) => ({ ...c, maxLineDistance: Number(e.target.value) }))
-                        }
-                    />
-                </label>
-            </div>
-
-            {/* Video container */}
-            <div className="video-container">
-                <video
-                    ref={videoRef}
-                    src={videoSrc}
-                    onLoadedMetadata={handleVideoLoaded}
-                    onEnded={handleVideoEnded}
-                    playsInline
-                    muted
-                />
-                <canvas ref={canvasRef} className="overlay-canvas" />
-            </div>
-
-            <style jsx>{`
+      <style jsx>{`
         .video-tracker {
           display: flex;
           flex-direction: column;
@@ -514,6 +521,6 @@ export function VideoTracker({ className = "" }: VideoTrackerProps) {
           pointer-events: none;
         }
       `}</style>
-        </div>
-    );
+    </div>
+  );
 }
