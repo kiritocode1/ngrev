@@ -173,10 +173,6 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
                     video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "environment" },
                 });
                 streamRef.current = stream;
-                if (videoRef.current) {
-                    videoRef.current.srcObject = stream;
-                    videoRef.current.play(); // Auto-play camera
-                }
                 setIsCamera(true);
                 setVideoSrc("");
                 setIsPlaying(true);
@@ -187,6 +183,14 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
                 setErrorMessage("Camera permission denied");
                 setStatus("error");
             }
+        }
+    }, [isCamera]);
+
+    // Attach stream to video when camera mode is active
+    useEffect(() => {
+        if (isCamera && streamRef.current && videoRef.current) {
+            videoRef.current.srcObject = streamRef.current;
+            videoRef.current.play().catch(e => console.error("Error playing stream:", e));
         }
     }, [isCamera]);
 
@@ -409,7 +413,7 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
                     <>
                         <video
                             ref={videoRef}
-                            src={videoSrc}
+                            src={videoSrc || undefined}
                             onLoadedMetadata={handleVideoLoaded}
                             onEnded={handleVideoEnded}
                             className="w-full h-full object-contain max-h-[600px]"
