@@ -200,27 +200,32 @@ export class ExportSession {
             return null;
         }
 
+        // Store reference to avoid race conditions
+        const output = this.output;
+        const videoSource = this.videoSource;
+        const audioSource = this.audioSource;
+
+        this.isRecording = false;
         this.reportProgress("finalizing", 0, "Finalizing video...");
 
         try {
             // Close sources
-            if (this.videoSource) {
-                await this.videoSource.close();
+            if (videoSource) {
+                await videoSource.close();
             }
-            if (this.audioSource) {
-                await this.audioSource.close();
+            if (audioSource) {
+                await audioSource.close();
             }
 
-            await this.output.finalize();
+            await output.finalize();
 
-            const target = this.output.target as BufferTarget;
+            const target = output.target as BufferTarget;
             const mimeType = this.config.format === "webm" ? "video/webm" : "video/mp4";
-            if (!target.buffer) {
+            if (!target || !target.buffer) {
                 throw new Error("Export failed: no output buffer available");
             }
             const blob = new Blob([target.buffer], { type: mimeType });
 
-            this.isRecording = false;
             this.reportProgress("complete", 100, `Export complete: ${this.frameCount} frames`);
 
             return blob;

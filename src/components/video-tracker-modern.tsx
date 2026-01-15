@@ -55,6 +55,7 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
     const lastTracksRef = useRef<any[]>([]); // Store last tracks for instant rendering
     const videoFileRef = useRef<File | null>(null); // Store original video file for export
     const exportSessionRef = useRef<ExportSession | null>(null);
+    const exportCanvasRef = useRef<HTMLCanvasElement | null>(null); // Composite canvas for export
 
     // Refs for real-time loop access (avoids stale closures)
     const rendererConfigRef = useRef(rendererConfig);
@@ -312,17 +313,7 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
         if (animationRef.current) {
             cancelAnimationFrame(animationRef.current);
         }
-        // Stop export recording if active
-        if (exportSessionRef.current?.isActive()) {
-            exportSessionRef.current.stopRecording().then(blob => {
-                if (blob) {
-                    const filename = `tracked-video-${Date.now()}.mp4`;
-                    downloadBlob(blob, filename);
-                }
-                setIsExporting(false);
-                setExportProgress(null);
-            });
-        }
+        // Note: Export completion is handled in the export loop itself to avoid race conditions
     }, []);
 
     // Toggle audio mute (for voiceover feature)
@@ -337,10 +328,10 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
     // Export video with audio
     const handleExport = useCallback(async () => {
         const video = videoRef.current;
-        const canvas = canvasRef.current;
+        const overlayCanvas = canvasRef.current;
         const file = videoFileRef.current;
 
-        if (!video || !canvas) {
+        if (!video || !overlayCanvas) {
             setErrorMessage("No video or canvas available for export");
             return;
         }
@@ -354,14 +345,24 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
         setExportProgress({ phase: "preparing", progress: 0, message: "Preparing export..." });
 
         try {
+            // Create a composite canvas that will contain video + overlays
+            const exportCanvas = document.createElement('canvas');
+            exportCanvas.width = video.videoWidth;
+            exportCanvas.height = video.videoHeight;
+            const exportCtx = exportCanvas.getContext('2d');
+            if (!exportCtx) {
+                throw new Error("Failed to create export canvas context");
+            }
+            exportCanvasRef.current = exportCanvas;
+
             const session = new ExportSession({ frameRate: 30, format: "mp4" });
             exportSessionRef.current = session;
 
             // Extract audio from original video
             await session.extractAudioFromVideo(file, setExportProgress);
 
-            // Start recording
-            await session.startRecording(canvas, setExportProgress);
+            // Start recording with the composite canvas
+            await session.startRecording(exportCanvas, setExportProgress);
 
             // Reset video to beginning and play
             video.currentTime = 0;
@@ -377,40 +378,80 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
                 video.addEventListener("seeked", onSeeked);
             });
 
-            // Start playback - the processFrame will run, and handleVideoEnded will stop export
+            // Start playback
             video.play();
             setIsPlaying(true);
             animationRef.current = requestAnimationFrame(processFrame);
 
-            // Monitor for video end or manual stop
-            const checkExport = async () => {
-                if (!session.isActive()) return;
+            // Track if export should continue
+            let exportStopped = false;
 
-                if (video.ended) {
-                    const blob = await session.stopRecording();
-                    if (blob) {
-                        const filename = `tracked-video-${Date.now()}.mp4`;
-                        downloadBlob(blob, filename);
+            // Export loop - captures composite frames
+            const captureAndExport = async () => {
+                // Check if we should stop
+                if (exportStopped || !session.isActive()) {
+                    return;
+                }
+
+                // Only stop when video has truly ended (check both ended flag and currentTime)
+                const videoComplete = video.ended || (video.duration > 0 && video.currentTime >= video.duration - 0.1);
+
+                if (videoComplete) {
+                    exportStopped = true;
+                    // Stop recording and download
+                    try {
+                        const blob = await session.stopRecording();
+                        if (blob) {
+                            const filename = `tracked-video-${Date.now()}.mp4`;
+                            downloadBlob(blob, filename);
+                        }
+                        setExportProgress({ phase: "complete", progress: 100, message: "Export complete!" });
+                    } catch (err) {
+                        console.error("Stop recording error:", err);
+                        setExportProgress({ phase: "error", progress: 0, message: `Export failed: ${err}` });
                     }
                     setIsExporting(false);
-                    setExportProgress({ phase: "complete", progress: 100, message: "Export complete!" });
                     video.muted = false;
                     setIsMuted(false);
-                } else {
-                    // Add frame and continue
-                    await session.addFrame();
-                    const progress = (video.currentTime / video.duration) * 100;
+                    exportSessionRef.current = null;
+                    return;
+                }
+
+                // If video paused unexpectedly (buffering), try to resume
+                if (video.paused && !video.ended) {
+                    video.play().catch(() => {/* ignore play errors */ });
+                }
+
+                try {
+                    // Draw video frame to export canvas
+                    exportCtx.drawImage(video, 0, 0, exportCanvas.width, exportCanvas.height);
+
+                    // Draw overlay canvas on top (tracking lines/boxes)
+                    if (overlayCanvas.width > 0 && overlayCanvas.height > 0) {
+                        exportCtx.drawImage(overlayCanvas, 0, 0, exportCanvas.width, exportCanvas.height);
+                    }
+
+                    // Add the composited frame (don't await to prevent blocking)
+                    session.addFrame().catch(err => {
+                        console.error("Frame capture error:", err);
+                    });
+
+                    const progress = video.duration > 0 ? (video.currentTime / video.duration) * 100 : 0;
                     setExportProgress({
                         phase: "recording",
                         progress,
                         currentFrame: session.getFrameCount(),
                         message: `Recording: ${Math.round(progress)}%`
                     });
-                    requestAnimationFrame(checkExport);
+                } catch (err) {
+                    console.error("Export frame error:", err);
                 }
+
+                // Continue the loop
+                requestAnimationFrame(captureAndExport);
             };
 
-            requestAnimationFrame(checkExport);
+            requestAnimationFrame(captureAndExport);
 
         } catch (error) {
             console.error("Export failed:", error);
