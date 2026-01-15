@@ -47,6 +47,8 @@ const PRESET_COLORS = [
 
 const FONT_SIZES = [4, 6, 8, 10, 12, 14];
 
+const STROKE_WIDTHS = [0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5];
+
 
 
 export function AppSidebar() {
@@ -263,12 +265,12 @@ export function AppSidebar() {
                                     <div className="flex justify-between items-center">
                                         <Label className="text-mono text-[10px] uppercase tracking-wider text-muted-foreground">Fixed Size</Label>
                                         <span className="text-mono text-[10px] text-foreground">
-                                            {(rendererConfig.fixedBoxSize || 0) === 0 ? "AUTO" : `${rendererConfig.fixedBoxSize}px`}
+                                            {rendererConfig.fixedBoxSize}px
                                         </span>
                                     </div>
                                     <Slider
-                                        value={[rendererConfig.fixedBoxSize || 0]}
-                                        min={0}
+                                        value={[rendererConfig.fixedBoxSize || 1]}
+                                        min={1}
                                         max={200}
                                         step={5}
                                         onValueChange={(val) => {
@@ -282,40 +284,57 @@ export function AppSidebar() {
                                 <Separator className="bg-border" />
 
                                 {/* Stroke Widths */}
-                                <div className="grid grid-cols-2 gap-3">
+                                <div className="space-y-3">
+                                    {/* Box Width Presets */}
                                     <div className="space-y-2">
                                         <div className="flex justify-between items-center">
-                                            <Label className="text-mono text-[9px] uppercase text-muted-foreground">Box</Label>
+                                            <Label className="text-mono text-[9px] uppercase text-muted-foreground">Box Stroke</Label>
                                             <span className="text-mono text-[9px] text-foreground">{rendererConfig.boxWidth}px</span>
                                         </div>
-                                        <Slider
-                                            value={[rendererConfig.boxWidth]}
-                                            min={0}
-                                            max={10}
-                                            step={1}
-                                            onValueChange={(val) => {
-                                                const newVal = Array.isArray(val) ? val[0] : val;
-                                                setRendererConfig(prev => ({ ...prev, boxWidth: newVal }));
-                                            }}
-                                            className="py-1"
-                                        />
+                                        <div className="flex gap-1">
+                                            {STROKE_WIDTHS.map(w => (
+                                                <Button
+                                                    key={`box-${w}`}
+                                                    variant={rendererConfig.boxWidth === w ? "default" : "outline"}
+                                                    size="sm"
+                                                    className={cn(
+                                                        "flex-1 h-6 text-mono text-[8px] px-0",
+                                                        rendererConfig.boxWidth === w
+                                                            ? "bg-foreground text-background"
+                                                            : "bg-transparent border-border"
+                                                    )}
+                                                    onClick={() => setRendererConfig(prev => ({ ...prev, boxWidth: w }))}
+                                                >
+                                                    {w}
+                                                </Button>
+                                            ))}
+                                        </div>
                                     </div>
+
+                                    {/* Line Width Presets */}
                                     <div className="space-y-2">
                                         <div className="flex justify-between items-center">
-                                            <Label className="text-mono text-[9px] uppercase text-muted-foreground">Line</Label>
+                                            <Label className="text-mono text-[9px] uppercase text-muted-foreground">Line Stroke</Label>
                                             <span className="text-mono text-[9px] text-foreground">{rendererConfig.lineWidth}px</span>
                                         </div>
-                                        <Slider
-                                            value={[rendererConfig.lineWidth]}
-                                            min={0}
-                                            max={10}
-                                            step={1}
-                                            onValueChange={(val) => {
-                                                const newVal = Array.isArray(val) ? val[0] : val;
-                                                setRendererConfig(prev => ({ ...prev, lineWidth: newVal }));
-                                            }}
-                                            className="py-1"
-                                        />
+                                        <div className="flex gap-1">
+                                            {STROKE_WIDTHS.map(w => (
+                                                <Button
+                                                    key={`line-${w}`}
+                                                    variant={rendererConfig.lineWidth === w ? "default" : "outline"}
+                                                    size="sm"
+                                                    className={cn(
+                                                        "flex-1 h-6 text-mono text-[8px] px-0",
+                                                        rendererConfig.lineWidth === w
+                                                            ? "bg-foreground text-background"
+                                                            : "bg-transparent border-border"
+                                                    )}
+                                                    onClick={() => setRendererConfig(prev => ({ ...prev, lineWidth: w }))}
+                                                >
+                                                    {w}
+                                                </Button>
+                                            ))}
+                                        </div>
                                     </div>
                                 </div>
                             </div>

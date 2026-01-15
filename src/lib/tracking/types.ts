@@ -87,7 +87,7 @@ export const DEFAULT_TRACKER_CONFIG: TrackerConfig = {
 /** Default renderer configuration */
 export const DEFAULT_RENDERER_CONFIG: RendererConfig = {
   boxColor: "#ffffff",
-  boxWidth: 2,
+  boxWidth: 1,
   labelFont: "12px Inter, system-ui, sans-serif",
   lineColor: "rgba(255, 255, 255, 0.4)",
   lineWidth: 1,
@@ -96,7 +96,7 @@ export const DEFAULT_RENDERER_CONFIG: RendererConfig = {
   showLines: true,
   trailLength: 50,  // Longer trails
   boxStyle: "basic",
-  fixedBoxSize: 0,
+  fixedBoxSize: 1,
   showLabels: true,
   fontSize: 8,
   textPosition: "top",

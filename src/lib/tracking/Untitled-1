@@ -1,0 +1,218 @@
+[Skip to content](https://mediabunny.dev#VPContent)
+[Mediabunny](https://mediabunny.dev/)
+[Guide](https://mediabunny.dev/guide/introduction)
+[API](https://mediabunny.dev/api/)
+[LLMs](https://mediabunny.dev/llms)
+[Examples](https://mediabunny.dev/examples)
+[Sponsors](https://mediabunny.dev/#sponsors)
+[License](https://github.com/Vanilagy/mediabunny#license)
+Appearance
+
+# MediabunnyComplete media toolkit
+A JavaScript library for reading, writing, and converting video and audio files. Directly in the browser, and faster than anybunny else.
+[Hop in](https://mediabunny.dev/guide/introduction)
+[API](https://mediabunny.dev/api)
+[Examples](https://mediabunny.dev/examples)
+[Sponsors](https://mediabunny.dev#sponsors)
+[License](https://github.com/Vanilagy/mediabunny#license)
+The missing part in the JS ecosystem for building web-first media apps.
+Yonatan, Gling AI
+Mediabunny gives you low-level control with high-level ease. It’s fast, lightweight, and finally feels like media processing built for the web, not ported to it.
+Konstantin, Diffusion Studio
+
+```
+npm install mediabunny
+```
+
+
+```
+npm install mediabunny
+```
+
+# Read any media file, efficiently
+Mediabunny allows you efficiently read data from any video or audio file, no matter the size: duration, resolution, rotation, tracks, codecs and other metadata, as well as raw or decoded media data from anywhere in the file. Load only what you need.
+[Docs](https://mediabunny.dev/guide/reading-media-files)
+
+```
+const input = new Input({ source: new UrlSource('./bigbuckbunny.mp4'), formats: ALL_FORMATS, // .mp4, .webm, .wav, ... }); const duration = await input.computeDuration(); const videoTrack = await input.getPrimaryVideoTrack(); const { displayWidth, displayHeight, rotation } = videoTrack; const audioTrack = await input.getPrimaryAudioTrack(); const { sampleRate, numberOfChannels } = audioTrack; // Get the frame halfway through the video const sink = new VideoSampleSink(videoTrack); const frame = await sink.getSample(duration / 2); // Loop over all frames of the video for await (const frame of sink.samples()) { // ... }
+```
+
+
+```
+const input = new Input({ source: new UrlSource('./bigbuckbunny.mp4'), formats: ALL_FORMATS, // .mp4, .webm, .wav, ... }); const duration = await input.computeDuration(); const videoTrack = await input.getPrimaryVideoTrack(); const { displayWidth, displayHeight, rotation } = videoTrack; const audioTrack = await input.getPrimaryAudioTrack(); const { sampleRate, numberOfChannels } = audioTrack; // Get the frame halfway through the video const sink = new VideoSampleSink(videoTrack); const frame = await sink.getSample(duration / 2); // Loop over all frames of the video for await (const frame of sink.samples()) { // ... }
+```
+
+
+```
+const output = new Output({ format: new Mp4OutputFormat(), // .mp4 target: new BufferTarget(), // in memory }); // Add video, driven by a canvas const videoSource = new CanvasSource(canvas, { codec: 'av1', bitrate: QUALITY_HIGH, }); output.addVideoTrack(videoSource); // Add audio, driven by audio buffers const audioSource = new AudioBufferSource({ codec: 'opus', bitrate: QUALITY_HIGH, }); output.addAudioTrack(audioSource); await output.start(); // Add media data here... await output.finalize(); const { buffer } = output.target; // Contains the final file
+```
+
+
+```
+const output = new Output({ format: new Mp4OutputFormat(), // .mp4 target: new BufferTarget(), // in memory }); // Add video, driven by a canvas const videoSource = new CanvasSource(canvas, { codec: 'av1', bitrate: QUALITY_HIGH, }); output.addVideoTrack(videoSource); // Add audio, driven by audio buffers const audioSource = new AudioBufferSource({ codec: 'opus', bitrate: QUALITY_HIGH, }); output.addAudioTrack(audioSource); await output.start(); // Add media data here... await output.finalize(); const { buffer } = output.target; // Contains the final file
+```
+
+# Create new media files, programmatically
+Generate new media files (such as MP4 or WebM) directly on the client, and as fast as the hardware allows. Add multiple video, audio, or subtitle tracks, and have precise control down to the microsecond.
+[Docs](https://mediabunny.dev/guide/writing-media-files)
+
+# Hopping-fast file conversion
+Use the Conversion API to transform any media file into any other media file: perform transmuxing, transcoding, resizing, rotation, audio resampling, trimming, and more.
+[Docs](https://mediabunny.dev/guide/converting-media-files)
+
+```
+const input = new Input({ source: new BlobSource(file), // Read from disk formats: ALL_FORMATS, }); const output = new Output({ format: new WebMOutputFormat(), // Convert to .webm target: new StreamTarget(writableStream), // Write to disk }); const conversion = await Conversion.init({ input, output }); await conversion.execute(); // Done!
+```
+
+
+```
+const input = new Input({ source: new BlobSource(file), // Read from disk formats: ALL_FORMATS, }); const output = new Output({ format: new WebMOutputFormat(), // Convert to .webm target: new StreamTarget(writableStream), // Write to disk }); const conversion = await Conversion.init({ input, output }); await conversion.execute(); // Done!
+```
+
+# Universal I/O
+Read and write files from and to memory, disk, or the network. Create files for offline use, or live-stream them as they're being created. Inject media data from a canvas, webcam, screen, microphone, audio buffer, your own encoding stack, or whatever. It's all up to you.
+
+# Wide container & codec support
+Mediabunny supports many commonly used container formats and a wide variety of video and audio codecs. And all of them bidirectionally, too! (that means for reading and writing)
+[See full list](https://mediabunny.dev/guide/supported-formats-and-codecs)
+Extract metadata
+Mediabunny
+862 ops/s
+@remotion/media-parser
+233 ops/s
+web-demuxer
+80.6 ops/s
+mp4box.js
+43.5 ops/s
+ffmpeg.wasm
+1.83 ops/s
+Iterate over all video packets
+Mediabunny
+10800 packets/s
+web-demuxer
+2390 packets/s
+@remotion/media-parser
+842 packets/s
+Convert to .webm & resize to 320x180
+Mediabunny
+804 frames/s
+@remotion/webcodecs
+324 frames/s
+ffmpeg.wasm
+12.0 frames/s
+Reading BigBuckBunny1080pH264.mov (691 MiB) from diskRyzen 7600X, RTX 4070, NVMe SSD, measured 2025-06-22
+
+# High performance
+By reading only what you need, writing progressively, utilizing hardware-accelerated encoding and decoding via the WebCodecs API, and using a pipelined design, Mediabunny is able to get the job done fast.
+
+# Built from scratch, for the web
+Mediabunny is 100% implemented in TypeScript and has zero dependencies. Its API was designed to be highly tree-shakable, meaning you only include what you use.
+Bundle size, minified + gzipped
+Reading .wav files
+5.10 kB
+Writing .wav files
+5.79 kB
+Writing .webm files
+11.4 kB
+Reading .webm files
+15.2 kB
+Reading .mp4 files
+16.0 kB
+Writing .mp4 files
+17.3 kB
+Reading all formats
+30.0 kB
+mp4box.js
+37.3 kB
+All features
+69.6 kB
+@remotion/webcodecs
+108 kB
+ffmpeg.wasm
+Measured 2025-06-22
+
+## ...and more!
+
+[See full feature list](https://mediabunny.dev/guide/introduction#features)
+
+# Made possible by you
+
+Mediabunny is an open-source project released under the [MPL-2.0](https://choosealicense.com/licenses/mpl-2.0/) and is therefore free to use for any purpose, including closed-source commercial use. A permissive license is essential for a foundational library like this to truly thrive. That said, this project requires an immense amount of work and care. This is made possible by the generous financial backing of these awesome sponsors:
+
+### Gold sponsors
+[Remotion](https://remotion.dev/)
+Remotion
+[Gling AI](https://www.gling.ai/)
+Gling AI
+[Diffusion Studio](https://diffusion.studio/)
+Diffusion Studio
+[Kino](https://kino.ai/)
+Kino
+
+### Silver sponsors
+[Pintura Labs](https://pqina.nl/pintura/)
+Pintura Labs
+[Ponder](https://ponder.ai/)
+Ponder
+
+### Bronze sponsors
+[React Video Editor](https://www.reactvideoeditor.com/)
+React Video Editor
+[Mux](https://www.mux.com/)
+Mux
+[Jellypod](https://jellypod.ai/)
+Jellypod
+
+#### Individual sponsors
+[Polotno](https://github.com/polotno-project)
+Polotno
+[Roman Rädle](https://github.com/raedle)
+Roman Rädle
+[Christopher Chedeau](https://github.com/vjeux)
+Christopher Chedeau
+[Memenome](https://github.com/memenome)
+Memenome
+[Brandon McConnell](https://github.com/brandonmcconnell)
+Brandon McConnell
+[studnitz](https://github.com/studnitz)
+studnitz
+[Hirbod](https://github.com/hirbod)
+Hirbod
+[Matthew Gardner](https://github.com/spheric)
+Matthew Gardner
+[AJ Funk](https://github.com/AJFunk)
+AJ Funk
+[Pablo Bonilla](https://github.com/devPablo)
+Pablo Bonilla
+[Anton Kosiakin](https://github.com/deil)
+Anton Kosiakin
+[SyhabouthAlex](https://github.com/SyhabouthAlex)
+SyhabouthAlex
+[wcw](https://github.com/asd55667)
+wcw
+[Bean Deng](https://github.com/HADB)
+Bean Deng
+[taf2000](https://github.com/taf2000)
+taf2000
+[H7GhosT](https://github.com/H7GhosT)
+H7GhosT
+[ihasq](https://github.com/ihasq)
+ihasq
+[Allwhy](https://github.com/Allwhy)
+Allwhy
+[808vita](https://github.com/808vita)
+808vita
+[Rodrigo Belfiore](https://github.com/roprgm)
+Rodrigo Belfiore
+[Aiden Liu](https://github.com/aidenlx)
+Aiden Liu
+[arthco](https://github.com/arthtyagi)
+arthco
+[alakhpc](https://github.com/alakhpc)
+alakhpc
+[Harvey Zhao](https://github.com/zhw2590582)
+Harvey Zhao
+[And you](https://github.com/sponsors/Vanilagy)
+And you
+Released under the Mozilla Public License 2.0.
+Copyright © 2025-present Vanilagy
