@@ -78,10 +78,10 @@ export interface RendererConfig {
 
 /** Default tracker configuration */
 export const DEFAULT_TRACKER_CONFIG: TrackerConfig = {
-  iouThreshold: 0.2,
-  maxAge: 2, // Remove tracks immediately when lost (very fast cleanup)
-  minHits: 2, // Require more consistency before showing
-  maxLineDistance: 300,
+  iouThreshold: 0.1,  // Lower threshold for motion tracking (more flexibility)
+  maxAge: 30,         // Keep tracks alive longer for trails
+  minHits: 1,         // Show immediately  
+  maxLineDistance: 400,
 };
 
 /** Default renderer configuration */
@@ -89,15 +89,15 @@ export const DEFAULT_RENDERER_CONFIG: RendererConfig = {
   boxColor: "#ffffff",
   boxWidth: 2,
   labelFont: "12px Inter, system-ui, sans-serif",
-  lineColor: "rgba(255, 255, 255, 0.3)",
+  lineColor: "rgba(255, 255, 255, 0.4)",
   lineWidth: 1,
   showScores: true,
   showIds: true,
   showLines: true,
-  trailLength: 10,
-  boxStyle: "basic", // Default to basic box
-  fixedBoxSize: 0, // 0 = Auto
+  trailLength: 50,  // Longer trails
+  boxStyle: "basic",
+  fixedBoxSize: 0,
   showLabels: true,
-  fontSize: 12,
+  fontSize: 8,
   textPosition: "top",
 };

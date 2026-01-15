@@ -1,11 +1,8 @@
 /**
- * IoU-based Multi-Object Tracker
+ * Multi-Object Tracker optimized for Motion Detection
  *
- * Implements a simple but effective tracking algorithm:
- * 1. Predict next position using velocity
- * 2. Match detections to existing tracks using IoU
- * 3. Update matched tracks, create new ones for unmatched detections
- * 4. Remove stale tracks
+ * Uses a combination of IoU and distance-based matching
+ * for better tracking of moving objects
  */
 
 import type { BoundingBox, Detection, Track, TrackerConfig } from "./types";
@@ -41,6 +38,15 @@ function getCenter(bbox: BoundingBox): { x: number; y: number } {
 }
 
 /**
+ * Calculate distance between two points
+ */
+function calculateDistance(p1: { x: number; y: number }, p2: { x: number; y: number }): number {
+  const dx = p1.x - p2.x;
+  const dy = p1.y - p2.y;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+/**
  * Predict next bounding box position using velocity
  */
 function predictNextPosition(track: Track): BoundingBox {
@@ -53,8 +59,7 @@ function predictNextPosition(track: Track): BoundingBox {
 }
 
 /**
- * Hungarian algorithm simplified - greedy IoU matching
- * Returns array of [detectionIndex, trackIndex] pairs
+ * Match detections to tracks using a combination of IoU and distance
  */
 function matchDetectionsToTracks(
   detections: Detection[],
@@ -69,21 +74,37 @@ function matchDetectionsToTracks(
   const usedDetections = new Set<number>();
   const usedTracks = new Set<number>();
 
-  // Build IoU matrix
-  const iouMatrix: { di: number; ti: number; iou: number }[] = [];
+  // Build combined score matrix (IoU + distance)
+  const scoreMatrix: { di: number; ti: number; score: number; iou: number; distance: number }[] = [];
+
   for (let di = 0; di < detections.length; di++) {
+    const detCenter = getCenter(detections[di].bbox);
+
     for (let ti = 0; ti < tracks.length; ti++) {
       const predictedBox = predictNextPosition(tracks[ti]);
+      const predictedCenter = getCenter(predictedBox);
+
       const iou = calculateIoU(detections[di].bbox, predictedBox);
-      if (iou >= iouThreshold) {
-        iouMatrix.push({ di, ti, iou });
+      const distance = calculateDistance(detCenter, predictedCenter);
+
+      // Calculate combined score
+      // Use distance-based matching if IoU is too low
+      const maxDist = Math.max(tracks[ti].bbox.width, tracks[ti].bbox.height, 150);
+      const distanceScore = Math.max(0, 1 - distance / maxDist);
+
+      // Combined score: prefer IoU, but use distance as fallback
+      const score = iou > 0.05 ? iou + distanceScore * 0.5 : distanceScore * 0.8;
+
+      if (score >= iouThreshold || distance < maxDist) {
+        scoreMatrix.push({ di, ti, score, iou, distance });
       }
     }
   }
 
-  // Sort by IoU descending and greedily match
-  iouMatrix.sort((a, b) => b.iou - a.iou);
-  for (const { di, ti } of iouMatrix) {
+  // Sort by combined score descending and greedily match
+  scoreMatrix.sort((a, b) => b.score - a.score);
+
+  for (const { di, ti } of scoreMatrix) {
     if (!usedDetections.has(di) && !usedTracks.has(ti)) {
       matched.push([di, ti]);
       usedDetections.add(di);
@@ -114,8 +135,6 @@ export class Tracker {
 
   /**
    * Update tracker with new detections
-   * @param detections - Array of detections from the current frame
-   * @returns Array of active tracks
    */
   update(detections: Detection[]): Track[] {
     // Step 1: Match detections to existing tracks
@@ -131,12 +150,17 @@ export class Tracker {
       const detection = detections[di];
       const track = this.tracks[ti];
 
-      // Calculate velocity from position change
+      // Calculate velocity from position change (smoothed)
       const oldCenter = getCenter(track.bbox);
       const newCenter = getCenter(detection.bbox);
+      const newVelocityX = newCenter.x - oldCenter.x;
+      const newVelocityY = newCenter.y - oldCenter.y;
+
+      // Smooth velocity with exponential moving average
+      const alpha = 0.7;
       track.velocity = {
-        x: newCenter.x - oldCenter.x,
-        y: newCenter.y - oldCenter.y,
+        x: track.velocity.x * (1 - alpha) + newVelocityX * alpha,
+        y: track.velocity.y * (1 - alpha) + newVelocityY * alpha,
       };
 
       // Update track state
@@ -148,19 +172,31 @@ export class Tracker {
 
       // Add to history for trail visualization
       track.history.push({ ...detection.bbox });
-      if (track.history.length > 30) {
+      if (track.history.length > 100) {
         track.history.shift();
       }
     }
 
-    // Step 3: Age unmatched tracks
+    // Step 3: Age unmatched tracks and keep predicting
     for (const ti of unmatchedTracks) {
-      this.tracks[ti].timeSinceUpdate++;
-      this.tracks[ti].age++;
+      const track = this.tracks[ti];
+      track.timeSinceUpdate++;
+      track.age++;
 
-      // Apply velocity prediction
-      const predicted = predictNextPosition(this.tracks[ti]);
-      this.tracks[ti].bbox = predicted;
+      // Apply velocity prediction (damped)
+      if (track.timeSinceUpdate <= 5) {
+        const predicted = predictNextPosition(track);
+        track.bbox = predicted;
+        // Dampen velocity over time
+        track.velocity.x *= 0.9;
+        track.velocity.y *= 0.9;
+
+        // Still add to history for trail continuation
+        track.history.push({ ...track.bbox });
+        if (track.history.length > 100) {
+          track.history.shift();
+        }
+      }
     }
 
     // Step 4: Create new tracks for unmatched detections
@@ -184,7 +220,7 @@ export class Tracker {
       (track) => track.timeSinceUpdate < this.config.maxAge,
     );
 
-    // Return only confirmed tracks (min hits) or recently updated tracks
+    // Return tracks (all active, not just confirmed)
     return this.tracks.filter(
       (track) =>
         track.age >= this.config.minHits || track.timeSinceUpdate === 0,

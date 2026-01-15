@@ -2,6 +2,7 @@
  * Canvas Renderer for Tracking Visualization
  *
  * Draws bounding boxes, labels, and constellation lines on a canvas overlay
+ * Renders at native device pixel ratio for sharp 4K quality
  */
 
 import type { BoundingBox, RendererConfig, Track } from "./types";
@@ -18,18 +19,28 @@ function getDistance(box1: BoundingBox, box2: BoundingBox): number {
 
 /**
  * Canvas Renderer class
+ * Supports high-DPI rendering for crisp 4K quality
  */
 export class CanvasRenderer {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   private config: RendererConfig;
+  private dpr: number = 1;
+  private logicalWidth: number = 0;
+  private logicalHeight: number = 0;
 
   constructor(canvas: HTMLCanvasElement, config: Partial<RendererConfig> = {}) {
     this.canvas = canvas;
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext("2d", {
+      alpha: true,
+      desynchronized: true, // Performance optimization
+    });
     if (!ctx) throw new Error("Failed to get 2D context");
     this.ctx = ctx;
     this.config = { ...DEFAULT_RENDERER_CONFIG, ...config };
+
+    // Get device pixel ratio for sharp rendering
+    this.dpr = Math.min(window.devicePixelRatio || 1, 3); // Cap at 3x for performance
   }
 
   /**
@@ -45,6 +56,13 @@ export class CanvasRenderer {
   render(tracks: Track[], maxLineDistance: number): void {
     this.clear();
 
+    // Save context and apply DPR scaling
+    this.ctx.save();
+    this.ctx.scale(this.dpr, this.dpr);
+
+    // Enable crisp rendering
+    this.ctx.imageSmoothingEnabled = false;
+
     // Draw constellation lines first (behind boxes)
     if (this.config.showLines) {
       this.drawConstellationLines(tracks, maxLineDistance);
@@ -55,6 +73,8 @@ export class CanvasRenderer {
       this.drawBoundingBox(track);
       this.drawLabel(track);
     }
+
+    this.ctx.restore();
   }
 
   /**
@@ -62,11 +82,14 @@ export class CanvasRenderer {
    */
   private drawConstellationLines(tracks: Track[], maxDistance: number): void {
     if (this.config.lineWidth <= 0) return;
+
+    // Use subpixel rendering for crisp lines
     this.ctx.lineWidth = this.config.lineWidth;
+    this.ctx.lineCap = "round";
+    this.ctx.lineJoin = "round";
 
     for (let i = 0; i < tracks.length; i++) {
       const trackA = tracks[i];
-      // Use the center of the detection for the line start
       const centerA = {
         x: trackA.bbox.x + trackA.bbox.width / 2,
         y: trackA.bbox.y + trackA.bbox.height / 2,
@@ -82,22 +105,18 @@ export class CanvasRenderer {
             y: trackB.bbox.y + trackB.bbox.height / 2,
           };
 
-          // Alpha based on distance (closer = more opaque)
           const opacity = Math.max(0.1, 1 - distance / maxDistance);
 
           this.ctx.strokeStyle = `rgba(255, 255, 255, ${opacity * 0.5})`;
           this.ctx.beginPath();
-          this.ctx.moveTo(centerA.x, centerA.y);
-          this.ctx.lineTo(centerB.x, centerB.y);
+          this.ctx.moveTo(Math.round(centerA.x) + 0.5, Math.round(centerA.y) + 0.5);
+          this.ctx.lineTo(Math.round(centerB.x) + 0.5, Math.round(centerB.y) + 0.5);
           this.ctx.stroke();
         }
       }
     }
   }
 
-  /**
-   * Draw bounding box or marker for a track
-   */
   /**
    * Draw bounding box or marker for a track based on style
    */
@@ -118,25 +137,36 @@ export class CanvasRenderer {
 
     if (style === "none") return;
 
+    // Round coordinates for crisp rendering
+    x = Math.round(x) + 0.5;
+    y = Math.round(y) + 0.5;
+    width = Math.round(width);
+    height = Math.round(height);
+
     this.ctx.strokeStyle = this.config.boxColor;
     this.ctx.lineWidth = this.config.boxWidth;
-    this.ctx.setLineDash([]); // Reset dash
+    this.ctx.lineCap = "square";
+    this.ctx.lineJoin = "miter";
+    this.ctx.setLineDash([]);
 
     switch (style) {
       case "basic":
-        if (this.config.boxWidth > 0) this.ctx.strokeRect(x, y, width, height);
-        this.ctx.fillStyle = this.config.boxColor + "20"; // 12% opacity
+        if (this.config.boxWidth > 0) {
+          this.ctx.strokeRect(x, y, width, height);
+        }
+        this.ctx.fillStyle = this.config.boxColor + "20";
         this.ctx.fillRect(x, y, width, height);
         break;
 
       case "frame":
-        if (this.config.boxWidth > 0) this.ctx.strokeRect(x, y, width, height);
-        // Frame implies no fill, maybe slightly thicker or distinct
+        if (this.config.boxWidth > 0) {
+          this.ctx.strokeRect(x, y, width, height);
+        }
         break;
 
       case "dash":
         if (this.config.boxWidth > 0) {
-          this.ctx.setLineDash([4, 4]);
+          this.ctx.setLineDash([6, 3]);
           this.ctx.strokeRect(x, y, width, height);
           this.ctx.setLineDash([]);
         }
@@ -152,13 +182,15 @@ export class CanvasRenderer {
         break;
 
       case "scope":
-        this.drawScope(x, y, width, height);
+        this.drawScope(x - 0.5, y - 0.5, width, height);
         break;
     }
   }
 
   private drawCorners(x: number, y: number, w: number, h: number): void {
     const len = Math.min(w, h) * 0.25;
+    this.ctx.lineWidth = this.config.boxWidth;
+    this.ctx.lineCap = "square";
     this.ctx.beginPath();
 
     // Top-left
@@ -186,17 +218,15 @@ export class CanvasRenderer {
 
   private drawGridLines(x: number, y: number, w: number, h: number): void {
     this.ctx.beginPath();
-    // Verticals
-    this.ctx.moveTo(x + w / 3, y);
-    this.ctx.lineTo(x + w / 3, y + h);
-    this.ctx.moveTo(x + (2 * w) / 3, y);
-    this.ctx.lineTo(x + (2 * w) / 3, y + h);
+    this.ctx.moveTo(Math.round(x + w / 3) + 0.5, y);
+    this.ctx.lineTo(Math.round(x + w / 3) + 0.5, y + h);
+    this.ctx.moveTo(Math.round(x + (2 * w) / 3) + 0.5, y);
+    this.ctx.lineTo(Math.round(x + (2 * w) / 3) + 0.5, y + h);
 
-    // Horizontals
-    this.ctx.moveTo(x, y + h / 3);
-    this.ctx.lineTo(x + w, y + h / 3);
-    this.ctx.moveTo(x, y + (2 * h) / 3);
-    this.ctx.lineTo(x + w, y + (2 * h) / 3);
+    this.ctx.moveTo(x, Math.round(y + h / 3) + 0.5);
+    this.ctx.lineTo(x + w, Math.round(y + h / 3) + 0.5);
+    this.ctx.moveTo(x, Math.round(y + (2 * h) / 3) + 0.5);
+    this.ctx.lineTo(x + w, Math.round(y + (2 * h) / 3) + 0.5);
 
     this.ctx.globalAlpha = 0.5;
     this.ctx.stroke();
@@ -225,7 +255,7 @@ export class CanvasRenderer {
     // Center point
     this.ctx.fillStyle = this.config.boxColor;
     this.ctx.beginPath();
-    this.ctx.arc(cx, cy, 2, 0, Math.PI * 2);
+    this.ctx.arc(cx, cy, 3, 0, Math.PI * 2);
     this.ctx.fill();
   }
 
@@ -237,7 +267,7 @@ export class CanvasRenderer {
 
     let { x, y, width, height } = track.bbox;
 
-    // Apply fixed box size if configured to align label correctly
+    // Apply fixed box size if configured
     if (this.config.fixedBoxSize > 0) {
       const fixed = this.config.fixedBoxSize;
       const cxRaw = x + width / 2;
@@ -248,7 +278,6 @@ export class CanvasRenderer {
       height = fixed;
     }
 
-    // Position depends on box mode
     const cx = x + width / 2;
     const cy = y + height / 2;
 
@@ -264,32 +293,50 @@ export class CanvasRenderer {
 
     if (!label) return;
 
-    if (!label) return;
+    // Use configurable font size with crisp rendering
+    const fontSize = this.config.fontSize || 10;
 
-    // Use configurable font size
-    const fontSize = this.config.fontSize || 12;
-    this.ctx.font = `${fontSize}px Inter, system-ui, sans-serif`;
+    // Use monospace for small text (crisper), proportional for larger
+    const fontFamily = fontSize <= 8
+      ? '"JetBrains Mono", "SF Mono", "Monaco", monospace'
+      : '"Inter", "SF Pro Display", -apple-system, system-ui, sans-serif';
+
+    // Lighter weight for small text
+    const fontWeight = fontSize <= 8 ? 400 : 500;
+
+    this.ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
     this.ctx.fillStyle = "#ffffff";
     this.ctx.textAlign = "center";
 
     const pos = this.config.textPosition || "top";
+    const shadowBlur = fontSize <= 8 ? 1 : 2;
 
     if (pos === "center") {
       this.ctx.textBaseline = "middle";
-      this.ctx.fillText(label, cx, cy);
+      this.ctx.shadowColor = "rgba(0, 0, 0, 0.6)";
+      this.ctx.shadowBlur = shadowBlur;
+      this.ctx.shadowOffsetX = 0;
+      this.ctx.shadowOffsetY = fontSize <= 8 ? 0 : 1;
+      this.ctx.fillText(label, Math.round(cx), Math.round(cy));
+      this.ctx.shadowBlur = 0;
       return;
     }
 
     this.ctx.textBaseline = pos === "top" ? "bottom" : "top";
-    const offset = (this.config.boxStyle === "scope" ? 20 : 4) + (fontSize / 4);
+    const offset = fontSize <= 8 ? 3 : 5;
+
+    this.ctx.shadowColor = "rgba(0, 0, 0, 0.7)";
+    this.ctx.shadowBlur = shadowBlur;
+    this.ctx.shadowOffsetX = 0;
+    this.ctx.shadowOffsetY = fontSize <= 8 ? 0 : 1;
 
     if (pos === "top") {
-      // Draw above
-      this.ctx.fillText(label, cx, y - 4);
+      this.ctx.fillText(label, Math.round(cx), Math.round(y) - offset);
     } else {
-      // Draw below
-      this.ctx.fillText(label, cx, y + height + 4);
+      this.ctx.fillText(label, Math.round(cx), Math.round(y + height) + offset + fontSize);
     }
+
+    this.ctx.shadowBlur = 0;
   }
 
   /**
@@ -300,10 +347,25 @@ export class CanvasRenderer {
   }
 
   /**
-   * Resize canvas to match video dimensions
+   * Resize canvas to match video dimensions with high-DPI support
+   * This is crucial for 4K quality rendering
    */
   resize(width: number, height: number): void {
-    this.canvas.width = width;
-    this.canvas.height = height;
+    // Update DPR in case it changed
+    this.dpr = Math.min(window.devicePixelRatio || 1, 3);
+
+    this.logicalWidth = width;
+    this.logicalHeight = height;
+
+    // Set actual canvas size to native resolution
+    this.canvas.width = Math.round(width * this.dpr);
+    this.canvas.height = Math.round(height * this.dpr);
+
+    // Set display size via CSS
+    this.canvas.style.width = `${width}px`;
+    this.canvas.style.height = `${height}px`;
+
+    // Configure context for sharp rendering
+    this.ctx.imageSmoothingEnabled = false;
   }
 }

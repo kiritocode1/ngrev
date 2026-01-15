@@ -45,7 +45,7 @@ const PRESET_COLORS = [
     "#000000", // Black
 ];
 
-const FONT_SIZES = [10, 12, 14, 16, 18, 20];
+const FONT_SIZES = [4, 6, 8, 10, 12, 14];
 
 
 
