@@ -22,8 +22,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ngr.ev by blank",
-  description: "Effects platform",
+  title: "NGREV — The Art of Seeing Motion",
+  description: "Capture the poetry of change. Every movement tells a story.",
 };
 
 export default function RootLayout({

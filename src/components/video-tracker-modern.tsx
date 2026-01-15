@@ -453,7 +453,7 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div className="flex items-center gap-4">
                         <span className="text-mono text-xs uppercase tracking-widest text-muted-foreground">
-                            Analysis
+                            Observatory
                         </span>
 
                         {status === "error" && (
@@ -463,7 +463,7 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
                         )}
                         {status === "ready" && (
                             <span className="text-mono text-xs uppercase tracking-wider text-foreground">
-                                [ Ready ]
+                                [ Listening ]
                             </span>
                         )}
                     </div>
@@ -484,7 +484,7 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
                             className="text-mono text-[10px] uppercase tracking-wider h-8 border-border hover:bg-accent"
                         >
                             <Upload className="mr-2 h-3 w-3" />
-                            Upload
+                            Offer
                         </Button>
                         <Button
                             variant={isCamera ? "default" : "outline"}
@@ -497,7 +497,7 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
                             )}
                         >
                             <Camera className="mr-2 h-3 w-3" />
-                            {isCamera ? "Stop" : "Camera"}
+                            {isCamera ? "Cease" : "Witness"}
                         </Button>
 
                         {(videoSrc || isCamera) && (
@@ -516,7 +516,7 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
                                 ) : (
                                     <Play className="mr-2 h-3 w-3" />
                                 )}
-                                {isPlaying ? "Pause" : "Play"}
+                                {isPlaying ? "Still" : "Flow"}
                             </Button>
                         )}
 
@@ -558,7 +558,7 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
                                     className="text-mono text-[10px] uppercase tracking-wider h-8 border-border hover:bg-accent"
                                 >
                                     <Download className="mr-2 h-3 w-3" />
-                                    Export
+                                    Inscribe
                                 </Button>
                             )
                         )}
@@ -569,7 +569,7 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
                 <div className="mt-3 flex items-center justify-between">
                     <span className="text-mono text-[10px] uppercase text-muted-foreground">
                         {status === "ready" && !videoSrc && !isCamera
-                            ? "[ Awaiting input ]"
+                            ? "The canvas awaits its muse"
                             : ""}
                         {errorMessage && (
                             <span className="text-destructive">{errorMessage}</span>
@@ -600,8 +600,8 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
                         onClick={() => fileInputRef.current?.click()}
                     >
                         <Upload className="h-8 w-8 mx-auto mb-4 text-muted-foreground" />
-                        <p className="text-mono text-xs uppercase tracking-widest text-muted-foreground">No video selected</p>
-                        <p className="text-mono text-[10px] uppercase mt-2 text-muted-foreground/70">[ Click to upload ]</p>
+                        <p className="text-mono text-xs uppercase tracking-widest text-muted-foreground">Void</p>
+                        <p className="text-mono text-[10px] uppercase mt-2 text-muted-foreground/70">[ Offer your vision ]</p>
                     </div>
                 ) : (
                     <>

@@ -79,14 +79,14 @@ export function AppSidebar() {
 
                 <SidebarGroup className="group-data-[collapsible=icon]:hidden border-b border-border">
                     <SidebarGroupLabel className="text-mono text-[10px] uppercase tracking-widest text-muted-foreground px-4 py-3">
-                        01. Motion Config
+                        01. Perception
                     </SidebarGroupLabel>
                     <SidebarGroupContent className="space-y-4 px-4 pb-4">
 
                         {/* Motion Sensitivity */}
                         <div className="space-y-2">
                             <div className="flex justify-between items-center">
-                                <Label className="text-mono text-[10px] uppercase tracking-wider text-muted-foreground">Sensitivity</Label>
+                                <Label className="text-mono text-[10px] uppercase tracking-wider text-muted-foreground">Awareness</Label>
                                 <span className="text-mono text-[10px] text-foreground">
                                     {motionThreshold}
                                 </span>
@@ -104,7 +104,7 @@ export function AppSidebar() {
                         {/* Min Blob Size */}
                         <div className="space-y-2">
                             <div className="flex justify-between items-center">
-                                <Label className="text-mono text-[10px] uppercase tracking-wider text-muted-foreground">Min Size (px²)</Label>
+                                <Label className="text-mono text-[10px] uppercase tracking-wider text-muted-foreground">Threshold</Label>
                                 <span className="text-mono text-[10px] text-foreground">
                                     {minBlobSize}
                                 </span>
@@ -122,7 +122,7 @@ export function AppSidebar() {
                         {/* Line Distance */}
                         <div className="space-y-2">
                             <div className="flex justify-between items-center">
-                                <Label className="text-mono text-[10px] uppercase tracking-wider text-muted-foreground">Line Distance</Label>
+                                <Label className="text-mono text-[10px] uppercase tracking-wider text-muted-foreground">Resonance</Label>
                                 <span className="text-mono text-[10px] text-foreground">
                                     {config.maxLineDistance}px
                                 </span>
@@ -144,14 +144,14 @@ export function AppSidebar() {
 
                 <SidebarGroup className="group-data-[collapsible=icon]:hidden border-b border-border">
                     <SidebarGroupLabel className="text-mono text-[10px] uppercase tracking-widest text-muted-foreground px-4 py-3">
-                        02. Visual Settings
+                        02. Presence
                     </SidebarGroupLabel>
                     <SidebarGroupContent className="space-y-4 px-4 pb-4">
 
                         {/* Visualization Toggles */}
                         <div className="space-y-4">
                             <div className="space-y-2">
-                                <Label className="text-mono text-[10px] uppercase tracking-wider text-muted-foreground">Region Style</Label>
+                                <Label className="text-mono text-[10px] uppercase tracking-wider text-muted-foreground">Form</Label>
                                 <div className="grid grid-cols-3 gap-1">
                                     {BOX_STYLES.map((style) => (
                                         <Button
@@ -345,18 +345,18 @@ export function AppSidebar() {
 
                 <SidebarGroup className="group-data-[collapsible=icon]:hidden">
                     <SidebarGroupLabel className="text-mono text-[10px] uppercase tracking-widest text-muted-foreground px-4 py-3">
-                        03. Live Stats
+                        03. Pulse
                     </SidebarGroupLabel>
                     <SidebarGroupContent className="px-4 pb-4">
                         {/* Stats Display */}
                         <div className="grid grid-cols-2 gap-2">
                             <div className="bg-accent border border-border p-3 flex flex-col items-center justify-center">
                                 <span className="text-2xl font-bold text-mono text-foreground">{stats.objectCount}</span>
-                                <span className="text-mono text-[9px] uppercase text-muted-foreground">Objects</span>
+                                <span className="text-mono text-[9px] uppercase text-muted-foreground">Vessels</span>
                             </div>
                             <div className="bg-accent border border-border p-3 flex flex-col items-center justify-center">
                                 <span className="text-2xl font-bold text-mono text-foreground">{stats.fps}</span>
-                                <span className="text-mono text-[9px] uppercase text-muted-foreground">FPS</span>
+                                <span className="text-mono text-[9px] uppercase text-muted-foreground">Rhythm</span>
                             </div>
                         </div>
                     </SidebarGroupContent>
