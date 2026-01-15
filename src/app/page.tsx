@@ -1,6 +1,7 @@
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { VideoTrackerModern } from "@/components/video-tracker-modern";
+import Link from "next/link";
 
 export default function Page() {
   return (
@@ -92,7 +93,7 @@ export default function Page() {
       <footer className="border-t border-border px-4 py-4 flex items-center justify-between text-mono text-xs">
         <div className="flex items-center gap-4">
           <span className="text-muted-foreground">PROJECT BY</span>
-          <span className="font-medium">BLANK</span>
+          <Link className="font-extralight" href={"https://aryank.space/"} target="_blank">BLANK</Link>
         </div>
         <div className="hidden md:flex items-center gap-8">
           <span className="text-muted-foreground italic text-[10px] normal-case">
@@ -102,7 +103,7 @@ export default function Page() {
         <div className="flex items-center gap-4">
           {/* Barcode-style element */}
           <div className="flex gap-[2px] h-6">
-            {[1, 2, 1, 3, 1, 2, 1, 1, 3, 1, 2, 1].map((w, i) => (
+            {[2,3,0,9,0,2,2,8,0,1,0,6].map((w, i) => (
               <div
                 key={i}
                 className="bg-foreground"
