@@ -1,52 +1,59 @@
 /**
- * Motion Detection using Background Subtraction
+ * Motion Detection using Frame Differencing
  *
- * Detects any moving objects by comparing frames against a background model
+ * Detects actually moving objects by comparing consecutive frames
+ * Only objects that are actively changing between frames are detected
  */
 
 import type { BoundingBox, Detection } from "./types";
 
+interface MotionBlob {
+  bbox: BoundingBox;
+  area: number;
+  centerX: number;
+  centerY: number;
+  framesSeen: number;
+  lastSeen: number;
+}
+
 /**
  * Motion Detector class
- * Uses frame differencing and adaptive background subtraction
+ * Uses frame-to-frame differencing to detect actual movement
  */
 export class MotionDetector {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
-  private backgroundCanvas: HTMLCanvasElement;
-  private backgroundCtx: CanvasRenderingContext2D;
   private previousFrame: ImageData | null = null;
-  private backgroundModel: ImageData | null = null;
   private frameCount = 0;
+
+  // Tracked motion blobs for temporal consistency
+  private activeBlobs: Map<string, MotionBlob> = new Map();
+  private blobIdCounter = 0;
 
   // Configuration
   private threshold: number;
   private minBlobArea: number;
-  private learningRate: number;
+  private minFramesSeen: number; // Require blob to be seen across multiple frames
+  private maxBlobAge: number; // Remove blobs not seen recently
 
   constructor(
     options: {
       threshold?: number;
       minBlobArea?: number;
-      learningRate?: number;
+      minFramesSeen?: number;
+      maxBlobAge?: number;
     } = {},
   ) {
-    this.threshold = options.threshold ?? 30;
+    this.threshold = options.threshold ?? 25;
     this.minBlobArea = options.minBlobArea ?? 500;
-    this.learningRate = options.learningRate ?? 0.01;
+    this.minFramesSeen = options.minFramesSeen ?? 2; // Must be seen in 2+ frames
+    this.maxBlobAge = options.maxBlobAge ?? 5; // Remove after 5 frames unseen
 
-    // Create offscreen canvases for processing
+    // Create offscreen canvas for processing
     this.canvas = document.createElement("canvas");
     const ctx = this.canvas.getContext("2d", { willReadFrequently: true });
     if (!ctx) throw new Error("Failed to get 2D context");
     this.ctx = ctx;
-
-    this.backgroundCanvas = document.createElement("canvas");
-    const bgCtx = this.backgroundCanvas.getContext("2d", {
-      willReadFrequently: true,
-    });
-    if (!bgCtx) throw new Error("Failed to get background 2D context");
-    this.backgroundCtx = bgCtx;
   }
 
   /**
@@ -62,72 +69,57 @@ export class MotionDetector {
 
     if (width === 0 || height === 0) return [];
 
-    // Resize canvases if needed
+    // Resize canvas if needed
     if (this.canvas.width !== width || this.canvas.height !== height) {
       this.canvas.width = width;
       this.canvas.height = height;
-      this.backgroundCanvas.width = width;
-      this.backgroundCanvas.height = height;
-      this.backgroundModel = null;
       this.previousFrame = null;
+      this.activeBlobs.clear();
     }
 
     // Draw current frame
     this.ctx.drawImage(input, 0, 0);
     const currentFrame = this.ctx.getImageData(0, 0, width, height);
 
-    // Initialize background model on first frame
-    if (!this.backgroundModel) {
-      this.backgroundModel = new ImageData(
-        new Uint8ClampedArray(currentFrame.data),
-        width,
-        height,
-      );
+    // Need at least one previous frame
+    if (!this.previousFrame) {
       this.previousFrame = currentFrame;
       this.frameCount = 1;
       return [];
     }
 
-    // Update background model with running average
-    this.updateBackgroundModel(currentFrame);
+    // Get motion mask by comparing with previous frame
+    const motionMask = this.getMotionMask(currentFrame, this.previousFrame);
 
-    // Get foreground mask (moving pixels)
-    const foregroundMask = this.getForegroundMask(currentFrame);
+    // Apply morphological operations to clean up noise
+    const cleanedMask = this.morphologicalClean(motionMask, width, height);
 
-    // Find contours/blobs in the foreground mask
-    const detections = this.findBlobs(foregroundMask, width, height);
+    // Find connected blobs
+    const rawBlobs = this.findBlobs(cleanedMask, width, height);
 
+    // Update blob tracking for temporal consistency
+    this.updateBlobTracking(rawBlobs);
+
+    // Only return blobs that have been seen consistently
+    const confirmedDetections = this.getConfirmedDetections();
+
+    // Store current frame for next comparison
     this.previousFrame = currentFrame;
     this.frameCount++;
 
-    return detections;
+    return confirmedDetections;
   }
 
   /**
-   * Update background model using exponential moving average
+   * Get motion mask by comparing current frame with previous frame
+   * This finds pixels that have actually changed (moved)
    */
-  private updateBackgroundModel(currentFrame: ImageData): void {
-    if (!this.backgroundModel) return;
-
+  private getMotionMask(
+    currentFrame: ImageData,
+    previousFrame: ImageData
+  ): Uint8Array {
     const data = currentFrame.data;
-    const bgData = this.backgroundModel.data;
-    const lr = this.learningRate;
-
-    for (let i = 0; i < data.length; i += 4) {
-      bgData[i] = bgData[i] * (1 - lr) + data[i] * lr; // R
-      bgData[i + 1] = bgData[i + 1] * (1 - lr) + data[i + 1] * lr; // G
-      bgData[i + 2] = bgData[i + 2] * (1 - lr) + data[i + 2] * lr; // B
-    }
-  }
-
-  /**
-   * Get binary mask of moving pixels
-   */
-  private getForegroundMask(currentFrame: ImageData): Uint8Array {
-    if (!this.backgroundModel) return new Uint8Array(0);
-
-    const data = currentFrame.data;
-    const bgData = this.backgroundModel.data;
+    const prevData = previousFrame.data;
     const width = currentFrame.width;
     const height = currentFrame.height;
     const mask = new Uint8Array(width * height);
@@ -135,89 +127,105 @@ export class MotionDetector {
     for (let i = 0; i < data.length; i += 4) {
       const pixelIndex = i / 4;
 
-      // Calculate color difference
-      const diffR = Math.abs(data[i] - bgData[i]);
-      const diffG = Math.abs(data[i + 1] - bgData[i + 1]);
-      const diffB = Math.abs(data[i + 2] - bgData[i + 2]);
-      const diff = (diffR + diffG + diffB) / 3;
+      // Calculate difference between current and previous frame
+      const diffR = Math.abs(data[i] - prevData[i]);
+      const diffG = Math.abs(data[i + 1] - prevData[i + 1]);
+      const diffB = Math.abs(data[i + 2] - prevData[i + 2]);
 
-      mask[pixelIndex] = diff > this.threshold ? 1 : 0;
+      // Use maximum difference across channels for better sensitivity
+      const maxDiff = Math.max(diffR, diffG, diffB);
+
+      mask[pixelIndex] = maxDiff > this.threshold ? 1 : 0;
     }
 
-    // Apply simple morphological operations (erosion + dilation) to reduce noise
-    return this.morphologicalClean(mask, width, height);
+    return mask;
   }
 
   /**
-   * Simple morphological cleaning to reduce noise
+   * Morphological cleaning to reduce noise (erosion + dilation)
    */
   private morphologicalClean(
     mask: Uint8Array,
     width: number,
     height: number,
   ): Uint8Array {
-    const result = new Uint8Array(mask.length);
-
-    // Erosion followed by dilation (opening)
+    // First pass: erosion to remove small noise
+    const eroded = new Uint8Array(mask.length);
     for (let y = 1; y < height - 1; y++) {
       for (let x = 1; x < width - 1; x++) {
         const idx = y * width + x;
-
-        // 3x3 erosion - require all neighbors
         let count = 0;
+        // 3x3 neighborhood
         for (let dy = -1; dy <= 1; dy++) {
           for (let dx = -1; dx <= 1; dx++) {
             const nidx = (y + dy) * width + (x + dx);
             count += mask[nidx];
           }
         }
-        result[idx] = count >= 5 ? 1 : 0;
+        // Require at least 5 neighbors (more strict erosion)
+        eroded[idx] = count >= 5 ? 1 : 0;
       }
     }
 
-    return result;
+    // Second pass: dilation to restore blob size
+    const dilated = new Uint8Array(mask.length);
+    for (let y = 1; y < height - 1; y++) {
+      for (let x = 1; x < width - 1; x++) {
+        const idx = y * width + x;
+        if (eroded[idx] === 1) {
+          // Dilate: set all neighbors
+          for (let dy = -1; dy <= 1; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+              const nidx = (y + dy) * width + (x + dx);
+              dilated[nidx] = 1;
+            }
+          }
+        }
+      }
+    }
+
+    return dilated;
   }
 
   /**
-   * Find connected blobs in the foreground mask using simple flood fill
+   * Find connected blobs in the motion mask
    */
   private findBlobs(
     mask: Uint8Array,
     width: number,
     height: number,
-  ): Detection[] {
+  ): MotionBlob[] {
     const visited = new Uint8Array(mask.length);
-    const detections: Detection[] = [];
+    const blobs: MotionBlob[] = [];
 
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         const idx = y * width + x;
         if (mask[idx] === 1 && visited[idx] === 0) {
-          // Found new blob, flood fill to find extent
-          const blob = this.floodFill(mask, visited, x, y, width, height);
+          const result = this.floodFill(mask, visited, x, y, width, height);
 
-          if (blob.area >= this.minBlobArea) {
+          if (result.area >= this.minBlobArea) {
             const bbox: BoundingBox = {
-              x: blob.minX,
-              y: blob.minY,
-              width: blob.maxX - blob.minX,
-              height: blob.maxY - blob.minY,
+              x: result.minX,
+              y: result.minY,
+              width: result.maxX - result.minX,
+              height: result.maxY - result.minY,
             };
 
-            // Score based on blob size (larger = higher confidence)
-            const score = Math.min(1, blob.area / 5000);
-
-            detections.push({
+            blobs.push({
               bbox,
-              class: "motion",
-              score,
+              area: result.area,
+              centerX: result.minX + (result.maxX - result.minX) / 2,
+              centerY: result.minY + (result.maxY - result.minY) / 2,
+              framesSeen: 1,
+              lastSeen: this.frameCount,
             });
           }
         }
       }
     }
 
-    return detections;
+    return blobs;
   }
 
   /**
@@ -232,10 +240,8 @@ export class MotionDetector {
     height: number,
   ): { minX: number; minY: number; maxX: number; maxY: number; area: number } {
     const stack: [number, number][] = [[startX, startY]];
-    let minX = startX,
-      maxX = startX;
-    let minY = startY,
-      maxY = startY;
+    let minX = startX, maxX = startX;
+    let minY = startY, maxY = startY;
     let area = 0;
 
     while (stack.length > 0) {
@@ -261,11 +267,91 @@ export class MotionDetector {
   }
 
   /**
-   * Reset the background model
+   * Update blob tracking for temporal consistency
+   * Match new blobs to existing tracked blobs
+   */
+  private updateBlobTracking(newBlobs: MotionBlob[]): void {
+    const matchedIds = new Set<string>();
+
+    for (const newBlob of newBlobs) {
+      let bestMatch: string | null = null;
+      let bestDistance = Infinity;
+
+      // Find closest existing blob
+      for (const [id, existingBlob] of this.activeBlobs) {
+        const dx = newBlob.centerX - existingBlob.centerX;
+        const dy = newBlob.centerY - existingBlob.centerY;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        // Only match if reasonably close (within half the blob size)
+        const maxDistance = Math.max(existingBlob.bbox.width, existingBlob.bbox.height);
+        if (distance < maxDistance && distance < bestDistance) {
+          bestDistance = distance;
+          bestMatch = id;
+        }
+      }
+
+      if (bestMatch) {
+        // Update existing blob
+        const existing = this.activeBlobs.get(bestMatch)!;
+        existing.bbox = newBlob.bbox;
+        existing.centerX = newBlob.centerX;
+        existing.centerY = newBlob.centerY;
+        existing.area = newBlob.area;
+        existing.framesSeen++;
+        existing.lastSeen = this.frameCount;
+        matchedIds.add(bestMatch);
+      } else {
+        // Create new tracked blob
+        const id = `blob_${this.blobIdCounter++}`;
+        this.activeBlobs.set(id, {
+          ...newBlob,
+          lastSeen: this.frameCount,
+        });
+        matchedIds.add(id);
+      }
+    }
+
+    // Remove old blobs that haven't been seen recently
+    for (const [id, blob] of this.activeBlobs) {
+      const age = this.frameCount - blob.lastSeen;
+      if (age > this.maxBlobAge) {
+        this.activeBlobs.delete(id);
+      }
+    }
+  }
+
+  /**
+   * Get detections that have been confirmed across multiple frames
+   */
+  private getConfirmedDetections(): Detection[] {
+    const detections: Detection[] = [];
+
+    for (const [, blob] of this.activeBlobs) {
+      // Only include blobs seen across enough frames
+      if (blob.framesSeen >= this.minFramesSeen) {
+        // Score based on blob consistency and size
+        const sizeScore = Math.min(1, blob.area / 10000);
+        const consistencyScore = Math.min(1, blob.framesSeen / 10);
+        const score = (sizeScore + consistencyScore) / 2;
+
+        detections.push({
+          bbox: blob.bbox,
+          class: "motion",
+          score,
+        });
+      }
+    }
+
+    return detections;
+  }
+
+  /**
+   * Reset the motion detector
    */
   reset(): void {
-    this.backgroundModel = null;
     this.previousFrame = null;
+    this.activeBlobs.clear();
     this.frameCount = 0;
   }
 
@@ -275,12 +361,12 @@ export class MotionDetector {
   setConfig(options: {
     threshold?: number;
     minBlobArea?: number;
-    learningRate?: number;
+    minFramesSeen?: number;
+    maxBlobAge?: number;
   }): void {
     if (options.threshold !== undefined) this.threshold = options.threshold;
-    if (options.minBlobArea !== undefined)
-      this.minBlobArea = options.minBlobArea;
-    if (options.learningRate !== undefined)
-      this.learningRate = options.learningRate;
+    if (options.minBlobArea !== undefined) this.minBlobArea = options.minBlobArea;
+    if (options.minFramesSeen !== undefined) this.minFramesSeen = options.minFramesSeen;
+    if (options.maxBlobAge !== undefined) this.maxBlobAge = options.maxBlobAge;
   }
 }
