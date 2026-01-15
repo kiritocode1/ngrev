@@ -60,8 +60,12 @@ export class CanvasRenderer {
     this.ctx.save();
     this.ctx.scale(this.dpr, this.dpr);
 
-    // Enable crisp rendering
+    // Enable crisp rendering for shapes
     this.ctx.imageSmoothingEnabled = false;
+    // @ts-expect-error - vendor prefix for older browsers
+    this.ctx.mozImageSmoothingEnabled = false;
+    // @ts-expect-error - vendor prefix for older browsers  
+    this.ctx.webkitImageSmoothingEnabled = false;
 
     // Draw constellation lines first (behind boxes)
     if (this.config.showLines) {
@@ -83,8 +87,9 @@ export class CanvasRenderer {
   private drawConstellationLines(tracks: Track[], maxDistance: number): void {
     if (this.config.lineWidth <= 0) return;
 
-    // Use subpixel rendering for crisp lines
-    this.ctx.lineWidth = this.config.lineWidth;
+    // Scale line width for DPR - ensure minimum 1 device pixel
+    const lineWidth = Math.max(this.config.lineWidth, 1 / this.dpr);
+    this.ctx.lineWidth = lineWidth;
     this.ctx.lineCap = "round";
     this.ctx.lineJoin = "round";
 
@@ -144,7 +149,9 @@ export class CanvasRenderer {
     height = Math.round(height);
 
     this.ctx.strokeStyle = this.config.boxColor;
-    this.ctx.lineWidth = this.config.boxWidth;
+    // Scale line width for DPR - ensure minimum 1 device pixel for crisp lines
+    const boxLineWidth = Math.max(this.config.boxWidth, 1 / this.dpr);
+    this.ctx.lineWidth = boxLineWidth;
     this.ctx.lineCap = "square";
     this.ctx.lineJoin = "miter";
     this.ctx.setLineDash([]);
@@ -293,50 +300,47 @@ export class CanvasRenderer {
 
     if (!label) return;
 
-    // Use configurable font size with crisp rendering
-    const fontSize = this.config.fontSize || 10;
+    // Use configurable font size - round to whole pixels for crisp text
+    const fontSize = Math.round(this.config.fontSize || 10);
 
-    // Use monospace for small text (crisper), proportional for larger
-    const fontFamily = fontSize <= 8
-      ? '"JetBrains Mono", "SF Mono", "Monaco", monospace'
-      : '"Inter", "SF Pro Display", -apple-system, system-ui, sans-serif';
+    // Use monospace for all sizes - crisper on canvas
+    const fontFamily = '"SF Mono", "Monaco", "Consolas", monospace';
 
-    // Lighter weight for small text
-    const fontWeight = fontSize <= 8 ? 400 : 500;
+    // Use whole-pixel font weight
+    const fontWeight = 500;
 
     this.ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
     this.ctx.fillStyle = "#ffffff";
     this.ctx.textAlign = "center";
 
     const pos = this.config.textPosition || "top";
-    const shadowBlur = fontSize <= 8 ? 1 : 2;
+
+    // Draw text outline for contrast (no blur - crisp edges)
+    this.ctx.strokeStyle = "rgba(0, 0, 0, 0.9)";
+    this.ctx.lineWidth = Math.max(2, fontSize / 5);
+    this.ctx.lineJoin = "round";
+    this.ctx.miterLimit = 2;
 
     if (pos === "center") {
       this.ctx.textBaseline = "middle";
-      this.ctx.shadowColor = "rgba(0, 0, 0, 0.6)";
-      this.ctx.shadowBlur = shadowBlur;
-      this.ctx.shadowOffsetX = 0;
-      this.ctx.shadowOffsetY = fontSize <= 8 ? 0 : 1;
+      // Stroke first for outline
+      this.ctx.strokeText(label, Math.round(cx), Math.round(cy));
+      // Then fill
       this.ctx.fillText(label, Math.round(cx), Math.round(cy));
-      this.ctx.shadowBlur = 0;
       return;
     }
 
     this.ctx.textBaseline = pos === "top" ? "bottom" : "top";
-    const offset = fontSize <= 8 ? 3 : 5;
+    const offset = Math.round(fontSize / 2);
 
-    this.ctx.shadowColor = "rgba(0, 0, 0, 0.7)";
-    this.ctx.shadowBlur = shadowBlur;
-    this.ctx.shadowOffsetX = 0;
-    this.ctx.shadowOffsetY = fontSize <= 8 ? 0 : 1;
+    const textX = Math.round(cx);
+    const textY = pos === "top"
+      ? Math.round(y) - offset
+      : Math.round(y + height) + offset + fontSize;
 
-    if (pos === "top") {
-      this.ctx.fillText(label, Math.round(cx), Math.round(y) - offset);
-    } else {
-      this.ctx.fillText(label, Math.round(cx), Math.round(y + height) + offset + fontSize);
-    }
-
-    this.ctx.shadowBlur = 0;
+    // Stroke first for outline, then fill
+    this.ctx.strokeText(label, textX, textY);
+    this.ctx.fillText(label, textX, textY);
   }
 
   /**
@@ -349,6 +353,7 @@ export class CanvasRenderer {
   /**
    * Resize canvas to match video dimensions with high-DPI support
    * This is crucial for 4K quality rendering
+   * Note: CSS display size is controlled by Tailwind classes (w-full h-full)
    */
   resize(width: number, height: number): void {
     // Update DPR in case it changed
@@ -357,13 +362,10 @@ export class CanvasRenderer {
     this.logicalWidth = width;
     this.logicalHeight = height;
 
-    // Set actual canvas size to native resolution
+    // Set actual canvas buffer size to native resolution for crisp rendering
+    // Display size is handled by CSS classes (w-full h-full object-contain)
     this.canvas.width = Math.round(width * this.dpr);
     this.canvas.height = Math.round(height * this.dpr);
-
-    // Set display size via CSS
-    this.canvas.style.width = `${width}px`;
-    this.canvas.style.height = `${height}px`;
 
     // Configure context for sharp rendering
     this.ctx.imageSmoothingEnabled = false;

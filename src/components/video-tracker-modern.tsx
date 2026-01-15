@@ -182,10 +182,17 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
         const canvas = canvasRef.current;
         if (!video || !canvas) return;
 
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
+        // Create renderer first (it sets up DPR internally)
+        rendererRef.current = new CanvasRenderer(canvas, rendererConfigRef.current);
 
-        rendererRef.current = new CanvasRenderer(canvas);
+        // Use the renderer's resize method which properly handles DPR scaling
+        // This is crucial for crisp text and boxes on Retina/high-DPI displays
+        rendererRef.current.resize(video.videoWidth, video.videoHeight);
+
+        // Set canvas CSS size to match video's natural dimensions
+        // The canvas will be scaled by CSS the same way the video is
+        canvas.style.width = `${video.videoWidth}px`;
+        canvas.style.height = `${video.videoHeight}px`;
 
         if (motionDetectorRef.current) {
             motionDetectorRef.current.reset();
@@ -593,7 +600,7 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
             </div>
 
             {/* Video Container */}
-            <div className="p-0 relative bg-black aspect-video flex items-center justify-center">
+            <div className="p-0 relative bg-black aspect-video flex items-center justify-center overflow-hidden">
                 {!videoSrc && !isCamera ? (
                     <div
                         className="text-center p-8 cursor-pointer hover:bg-white/5 transition-colors w-full h-full flex flex-col items-center justify-center border border-dashed border-border/50 m-4"
@@ -604,21 +611,23 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
                         <p className="text-mono text-[10px] uppercase mt-2 text-muted-foreground/70">[ Offer your vision ]</p>
                     </div>
                 ) : (
-                    <>
+                    <div className="relative w-full h-full flex items-center justify-center">
                         <video
                             ref={videoRef}
                             src={videoSrc || undefined}
                             onLoadedMetadata={handleVideoLoaded}
                             onEnded={handleVideoEnded}
-                            className="w-full h-full object-contain max-h-[600px]"
+                            className="max-w-full max-h-full object-contain"
+                            style={{ maxHeight: '600px' }}
                             playsInline
                             muted={isMuted}
                         />
                         <canvas
                             ref={canvasRef}
-                            className="absolute top-0 left-0 w-full h-full pointer-events-none"
+                            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 max-w-full max-h-full object-contain pointer-events-none"
+                            style={{ maxHeight: '600px', imageRendering: 'pixelated' }}
                         />
-                    </>
+                    </div>
                 )}
             </div>
         </div>
