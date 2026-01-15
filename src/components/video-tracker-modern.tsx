@@ -1,8 +1,14 @@
 "use client";
 
-import { AlertCircle, Camera, Download, Loader2, Pause, Play, Upload, Volume2, VolumeX } from "lucide-react";
+import { AlertCircle, Camera, ChevronDown, Download, Film, Loader2, Pause, Play, Upload, Volume2, VolumeX } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
     CanvasRenderer,
     type Detection,
@@ -12,6 +18,10 @@ import {
 import { cn } from "@/lib/utils";
 import { useTracker } from "@/context/tracker-context";
 import { ExportSession, downloadBlob, type ExportProgress } from "@/lib/video-exporter";
+import { getMediaPresets, type MediaPreset } from "@/app/actions";
+
+// Video presets from public/media folder
+// Now loaded dynamically
 
 type Status = "idle" | "ready" | "processing" | "error";
 
@@ -46,6 +56,7 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
     const [isMuted, setIsMuted] = useState(false); // Start unmuted for voiceover
     const [isExporting, setIsExporting] = useState(false);
     const [exportProgress, setExportProgress] = useState<ExportProgress | null>(null);
+    const [presets, setPresets] = useState<MediaPreset[]>([]);
     const streamRef = useRef<MediaStream | null>(null);
     const lastTracksRef = useRef<any[]>([]); // Store last tracks for instant rendering
     const videoFileRef = useRef<File | null>(null); // Store original video file for export
@@ -76,6 +87,11 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
                 cancelAnimationFrame(animationRef.current);
             }
         };
+    }, []);
+
+    // Load presets
+    useEffect(() => {
+        getMediaPresets().then(setPresets);
     }, []);
 
     // Update tracker config when it changes
@@ -123,6 +139,32 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
             const url = URL.createObjectURL(file);
             setVideoSrc(url);
             setIsPlaying(false);
+
+            if (trackerRef.current) {
+                trackerRef.current.reset();
+            }
+            if (motionDetectorRef.current) {
+                motionDetectorRef.current.reset();
+            }
+        },
+        [videoSrc],
+    );
+
+    // Handle preset video selection
+    const handlePresetSelect = useCallback(
+        (presetPath: string) => {
+            // Clean up old video URL if it was a blob
+            if (videoSrc && videoSrc.startsWith('blob:')) {
+                URL.revokeObjectURL(videoSrc);
+            }
+
+            // Clear file reference since this is a preset
+            videoFileRef.current = null;
+
+            // Set the preset video path directly
+            setVideoSrc(presetPath);
+            setIsPlaying(false);
+            setIsCamera(false);
 
             if (trackerRef.current) {
                 trackerRef.current.reset();
@@ -493,6 +535,34 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
                             <Upload className="mr-2 h-3 w-3" />
                             Offer
                         </Button>
+
+                        {/* Video Presets Dropdown */}
+                        {presets.length > 0 && (
+                            <DropdownMenu>
+                                <DropdownMenuTrigger
+                                    disabled={status !== "ready"}
+                                    className={cn(
+                                        buttonVariants({ variant: "outline", size: "sm" }),
+                                        "text-mono text-[10px] uppercase tracking-wider h-8 border-border hover:bg-accent data-[state=open]:bg-accent"
+                                    )}
+                                >
+                                    <Film className="mr-2 h-3 w-3" />
+                                    Presets
+                                    <ChevronDown className="ml-2 h-3 w-3" />
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="start" className="min-w-[160px]">
+                                    {presets.map((preset) => (
+                                        <DropdownMenuItem
+                                            key={preset.path}
+                                            onClick={() => handlePresetSelect(preset.path)}
+                                            className="text-mono text-[10px] uppercase tracking-wider cursor-pointer"
+                                        >
+                                            {preset.name}
+                                        </DropdownMenuItem>
+                                    ))}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        )}
                         <Button
                             variant={isCamera ? "default" : "outline"}
                             size="sm"
