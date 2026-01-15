@@ -10,7 +10,6 @@ import {
     SidebarGroupLabel,
     SidebarHeader,
     SidebarRail,
-    SidebarSeparator as SidebarSep,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -18,7 +17,7 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { useTracker, type DetectionMode } from "@/context/tracker-context";
+import { useTracker } from "@/context/tracker-context";
 import { type BoundingBoxStyle } from "@/lib/tracking/types";
 import { cn } from "@/lib/utils";
 
@@ -54,10 +53,6 @@ export function AppSidebar() {
     const {
         config,
         setConfig,
-        detectionMode,
-        setDetectionMode,
-        detectionThreshold,
-        setDetectionThreshold,
         motionThreshold,
         setMotionThreshold,
         minBlobSize,
@@ -84,78 +79,27 @@ export function AppSidebar() {
 
                 <SidebarGroup className="group-data-[collapsible=icon]:hidden border-b border-border">
                     <SidebarGroupLabel className="text-mono text-[10px] uppercase tracking-widest text-muted-foreground px-4 py-3">
-                        01. Detection Config
+                        01. Motion Config
                     </SidebarGroupLabel>
                     <SidebarGroupContent className="space-y-4 px-4 pb-4">
 
-                        {/* Detection Mode */}
-                        <div className="space-y-2">
-                            <Label className="text-mono text-[10px] uppercase tracking-wider text-muted-foreground">Mode</Label>
-                            <ToggleGroup
-                                value={[detectionMode]}
-                                onValueChange={(val: string[]) => {
-                                    if (Array.isArray(val)) {
-                                        if (val.length > 1) {
-                                            const newMode = val.find((v: string) => v !== detectionMode);
-                                            if (newMode) setDetectionMode(newMode as DetectionMode);
-                                        } else if (val.length === 1) {
-                                            setDetectionMode(val[0] as DetectionMode);
-                                        }
-                                    }
-                                }}
-                                className="justify-start w-full bg-accent p-0.5"
-                            >
-                                <ToggleGroupItem value="objects" aria-label="Objects" className="flex-1 text-mono text-[10px] uppercase data-[state=on]:bg-foreground data-[state=on]:text-background h-7">
-                                    Objects
-                                </ToggleGroupItem>
-                                <ToggleGroupItem value="motion" aria-label="Motion" className="flex-1 text-mono text-[10px] uppercase data-[state=on]:bg-foreground data-[state=on]:text-background h-7">
-                                    Motion
-                                </ToggleGroupItem>
-                                <ToggleGroupItem value="both" aria-label="Both" className="flex-1 text-mono text-[10px] uppercase data-[state=on]:bg-foreground data-[state=on]:text-background h-7">
-                                    Both
-                                </ToggleGroupItem>
-                            </ToggleGroup>
-                        </div>
-
-                        {/* Object Threshold */}
-                        {(detectionMode === "objects" || detectionMode === "both") && (
-                            <div className="space-y-2">
-                                <div className="flex justify-between items-center">
-                                    <Label className="text-mono text-[10px] uppercase tracking-wider text-muted-foreground">Threshold</Label>
-                                    <span className="text-mono text-[10px] text-foreground">
-                                        {detectionThreshold.toFixed(2)}
-                                    </span>
-                                </div>
-                                <Slider
-                                    value={[detectionThreshold]}
-                                    min={0.1}
-                                    max={0.9}
-                                    step={0.05}
-                                    onValueChange={(vals) => setDetectionThreshold(Array.isArray(vals) ? vals[0] : vals)}
-                                    className="py-1"
-                                />
-                            </div>
-                        )}
-
                         {/* Motion Sensitivity */}
-                        {(detectionMode === "motion" || detectionMode === "both") && (
-                            <div className="space-y-2">
-                                <div className="flex justify-between items-center">
-                                    <Label className="text-mono text-[10px] uppercase tracking-wider text-muted-foreground">Sensitivity</Label>
-                                    <span className="text-mono text-[10px] text-foreground">
-                                        {motionThreshold}
-                                    </span>
-                                </div>
-                                <Slider
-                                    value={[motionThreshold]}
-                                    min={10}
-                                    max={80}
-                                    step={5}
-                                    onValueChange={(vals) => setMotionThreshold(Array.isArray(vals) ? vals[0] : vals)}
-                                    className="py-1"
-                                />
+                        <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                                <Label className="text-mono text-[10px] uppercase tracking-wider text-muted-foreground">Sensitivity</Label>
+                                <span className="text-mono text-[10px] text-foreground">
+                                    {motionThreshold}
+                                </span>
                             </div>
-                        )}
+                            <Slider
+                                value={[motionThreshold]}
+                                min={10}
+                                max={80}
+                                step={5}
+                                onValueChange={(vals) => setMotionThreshold(Array.isArray(vals) ? vals[0] : vals)}
+                                className="py-1"
+                            />
+                        </div>
 
                         {/* Min Blob Size */}
                         <div className="space-y-2">

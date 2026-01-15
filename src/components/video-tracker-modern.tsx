@@ -6,9 +6,6 @@ import { Button } from "@/components/ui/button";
 import {
     CanvasRenderer,
     type Detection,
-    detect,
-    isModelReady,
-    loadModel,
     MotionDetector,
     Tracker,
 } from "@/lib/tracking";
@@ -16,7 +13,7 @@ import { cn } from "@/lib/utils";
 import { useTracker } from "@/context/tracker-context";
 import { ExportSession, downloadBlob, type ExportProgress } from "@/lib/video-exporter";
 
-type Status = "idle" | "loading-model" | "ready" | "processing" | "error";
+type Status = "idle" | "ready" | "processing" | "error";
 
 interface VideoTrackerProps {
     className?: string;
@@ -34,8 +31,6 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
     // Context state
     const {
         config,
-        detectionMode,
-        detectionThreshold,
         motionThreshold,
         minBlobSize,
         rendererConfig,
@@ -59,38 +54,22 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
 
     // Refs for real-time loop access (avoids stale closures)
     const rendererConfigRef = useRef(rendererConfig);
-    const detectionThresholdRef = useRef(detectionThreshold);
     const minBlobSizeRef = useRef(minBlobSize);
-    const detectionModeRef = useRef(detectionMode);
     const configRef = useRef(config);
 
     // Sync refs with state
     useEffect(() => { rendererConfigRef.current = rendererConfig; }, [rendererConfig]);
-    useEffect(() => { detectionThresholdRef.current = detectionThreshold; }, [detectionThreshold]);
     useEffect(() => { minBlobSizeRef.current = minBlobSize; }, [minBlobSize]);
-    useEffect(() => { detectionModeRef.current = detectionMode; }, [detectionMode]);
     useEffect(() => { configRef.current = config; }, [config]);
 
-    // Initialize model on mount
+    // Initialize on mount
     useEffect(() => {
-        async function init() {
-            setStatus("loading-model");
-            try {
-                await loadModel();
-                trackerRef.current = new Tracker(config);
-                motionDetectorRef.current = new MotionDetector({
-                    threshold: motionThreshold,
-                    minBlobArea: minBlobSize,
-                });
-                setStatus("ready");
-            } catch (error) {
-                setStatus("error");
-                setErrorMessage(
-                    error instanceof Error ? error.message : "Failed to load model",
-                );
-            }
-        }
-        init();
+        trackerRef.current = new Tracker(config);
+        motionDetectorRef.current = new MotionDetector({
+            threshold: motionThreshold,
+            minBlobArea: minBlobSize,
+        });
+        setStatus("ready");
 
         return () => {
             if (animationRef.current) {
@@ -226,30 +205,13 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
 
         try {
             let allDetections: Detection[] = [];
-            const dMode = detectionModeRef.current;
-            const dThreshold = detectionThresholdRef.current;
-            const mBlob = minBlobSizeRef.current;
             const currConfig = configRef.current;
             const rConfig = rendererConfigRef.current;
 
-            if (
-                (dMode === "objects" || dMode === "both") &&
-                isModelReady()
-            ) {
-                const objectDetections = await detect(
-                    video,
-                    dThreshold,
-                    mBlob,
-                );
-                allDetections = [...allDetections, ...objectDetections];
-            }
-
-            if (
-                (dMode === "motion" || dMode === "both") &&
-                motionDetectorRef.current
-            ) {
+            // Use motion detection only
+            if (motionDetectorRef.current) {
                 const motionDetections = motionDetectorRef.current.detect(video);
-                allDetections = [...allDetections, ...motionDetections];
+                allDetections = motionDetections;
             }
 
             if (trackerRef.current) {
@@ -493,11 +455,7 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
                         <span className="text-mono text-xs uppercase tracking-widest text-muted-foreground">
                             Analysis
                         </span>
-                        {status === "loading-model" && (
-                            <span className="text-mono text-xs uppercase tracking-wider flex items-center gap-2 text-muted-foreground">
-                                <Loader2 className="h-3 w-3 animate-spin" /> Loading
-                            </span>
-                        )}
+
                         {status === "error" && (
                             <span className="text-mono text-xs uppercase tracking-wider flex items-center gap-2 text-destructive">
                                 <AlertCircle className="h-3 w-3" /> Error
@@ -516,13 +474,13 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
                             onChange={handleFileChange}
                             className="hidden"
                             ref={fileInputRef}
-                            disabled={status === "loading-model"}
+                            disabled={status !== "ready"}
                         />
                         <Button
                             variant="outline"
                             size="sm"
                             onClick={() => fileInputRef.current?.click()}
-                            disabled={status === "loading-model"}
+                            disabled={status !== "ready"}
                             className="text-mono text-[10px] uppercase tracking-wider h-8 border-border hover:bg-accent"
                         >
                             <Upload className="mr-2 h-3 w-3" />
@@ -532,7 +490,7 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
                             variant={isCamera ? "default" : "outline"}
                             size="sm"
                             onClick={toggleCamera}
-                            disabled={status === "loading-model"}
+                            disabled={status !== "ready"}
                             className={cn(
                                 "text-mono text-[10px] uppercase tracking-wider h-8",
                                 isCamera ? "bg-foreground text-background" : "border-border hover:bg-accent"
@@ -596,7 +554,7 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
                                     variant="outline"
                                     size="sm"
                                     onClick={handleExport}
-                                    disabled={status === "loading-model"}
+                                    disabled={status !== "ready"}
                                     className="text-mono text-[10px] uppercase tracking-wider h-8 border-border hover:bg-accent"
                                 >
                                     <Download className="mr-2 h-3 w-3" />

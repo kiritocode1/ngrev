@@ -47,11 +47,11 @@ export default function Page() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 text-mono text-xs uppercase">
           <div className="space-y-1">
             <span className="text-muted-foreground block">Detection</span>
-            <span className="text-foreground">TensorFlow.js</span>
+            <span className="text-foreground">Frame Diff</span>
           </div>
           <div className="space-y-1">
-            <span className="text-muted-foreground block">Models</span>
-            <span className="text-foreground">COCO-SSD</span>
+            <span className="text-muted-foreground block">Mode</span>
+            <span className="text-foreground">Motion Only</span>
           </div>
           <div className="space-y-1">
             <span className="text-muted-foreground block">Export</span>
@@ -59,7 +59,7 @@ export default function Page() {
           </div>
           <div className="space-y-1">
             <span className="text-muted-foreground block">Version</span>
-            <span className="text-foreground">01.0.0</span>
+            <span className="text-foreground">01.1.0</span>
           </div>
         </div>
 

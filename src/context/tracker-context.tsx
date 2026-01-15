@@ -8,20 +8,12 @@ export interface TrackingStats {
     fps: number;
 }
 
-export type DetectionMode = "objects" | "motion" | "both";
-
 interface TrackerContextType {
     // Tracker Config
     config: TrackerConfig;
     setConfig: React.Dispatch<React.SetStateAction<TrackerConfig>>;
 
-    // Detection Settings
-    detectionMode: DetectionMode;
-    setDetectionMode: (mode: DetectionMode) => void;
-
-    detectionThreshold: number;
-    setDetectionThreshold: (threshold: number) => void;
-
+    // Motion Detection Settings
     motionThreshold: number;
     setMotionThreshold: (threshold: number) => void;
 
@@ -41,12 +33,10 @@ const TrackerContext = createContext<TrackerContextType | undefined>(undefined);
 
 export function TrackerProvider({ children }: { children: React.ReactNode }) {
     const [config, setConfig] = useState<TrackerConfig>(DEFAULT_TRACKER_CONFIG);
-    const [detectionMode, setDetectionMode] = useState<DetectionMode>("both");
-    const [detectionThreshold, setDetectionThreshold] = useState(0.5);
     const [motionThreshold, setMotionThreshold] = useState(25);
     const [minBlobSize, setMinBlobSize] = useState(300);
 
-    // New State
+    // Renderer state
     const [rendererConfig, setRendererConfig] = useState<RendererConfig>(DEFAULT_RENDERER_CONFIG);
     const [stats, setStats] = useState<TrackingStats>({ objectCount: 0, fps: 0 });
 
@@ -55,10 +45,6 @@ export function TrackerProvider({ children }: { children: React.ReactNode }) {
             value={{
                 config,
                 setConfig,
-                detectionMode,
-                setDetectionMode,
-                detectionThreshold,
-                setDetectionThreshold,
                 motionThreshold,
                 setMotionThreshold,
                 minBlobSize,
