@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, Camera, ChevronDown, Download, Film, Loader2, Pause, Play, Upload, Volume2, VolumeX } from "lucide-react";
+import { AlertCircle, Camera, ChevronDown, Download, Film, Loader2, Music, Music2, Pause, Play, Upload, Volume2, VolumeX } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -10,6 +10,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+    AudioAnalyzer,
     CanvasRenderer,
     type Detection,
     MotionDetector,
@@ -63,6 +64,12 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
     const exportSessionRef = useRef<ExportSession | null>(null);
     const exportCanvasRef = useRef<HTMLCanvasElement | null>(null); // Composite canvas for export
 
+    // Audio analyzer for beat-gating
+    const audioAnalyzerRef = useRef<AudioAnalyzer | null>(null);
+    const [beatGatingEnabled, setBeatGatingEnabled] = useState(true); // Beat-reactive mode
+    const beatOpacityRef = useRef(1); // Current opacity (0-1) for smooth beat-gating
+    const audioConnectedRef = useRef(false); // Track if audio is connected
+
     // Refs for real-time loop access (avoids stale closures)
     const rendererConfigRef = useRef(rendererConfig);
     const minBlobSizeRef = useRef(minBlobSize);
@@ -80,11 +87,18 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
             threshold: motionThreshold,
             minBlobArea: minBlobSize,
         });
+        audioAnalyzerRef.current = new AudioAnalyzer({
+            beatSensitivity: 0.25, // Slightly less sensitive for cleaner beat detection
+            minBeatInterval: 150,  // Min 150ms between beats
+        });
         setStatus("ready");
 
         return () => {
             if (animationRef.current) {
                 cancelAnimationFrame(animationRef.current);
+            }
+            if (audioAnalyzerRef.current) {
+                audioAnalyzerRef.current.disconnect();
             }
         };
     }, []);
@@ -255,7 +269,45 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
         try {
             let allDetections: Detection[] = [];
             const currConfig = configRef.current;
-            const rConfig = rendererConfigRef.current;
+            let rConfig = { ...rendererConfigRef.current };
+
+            // Beat-gating: Analyze audio and modulate opacity
+            if (beatGatingEnabled && audioAnalyzerRef.current) {
+                // Try to connect audio analyzer if not connected
+                if (!audioConnectedRef.current && !video.muted) {
+                    try {
+                        await audioAnalyzerRef.current.connect(video);
+                        audioConnectedRef.current = true;
+                        console.log("🎵 Audio connected for beat-gating");
+                    } catch (e) {
+                        // Audio may already be connected or not available
+                    }
+                }
+
+                // Analyze audio for beat detection
+                if (audioConnectedRef.current) {
+                    const audioData = audioAnalyzerRef.current.analyze();
+
+                    // Beat-reactive opacity:
+                    // - On beat: Jump to full opacity based on beat intensity
+                    // - Decay smoothly between beats
+                    if (audioData.beatDetected) {
+                        // Boost opacity on beat (0.7 to 1.0 based on intensity)
+                        beatOpacityRef.current = 0.7 + audioData.beatIntensity * 0.3;
+                    } else {
+                        // Smooth decay towards base level (keep some visibility)
+                        const decayRate = 0.92;
+                        const minOpacity = 0.15; // Always show a little
+                        beatOpacityRef.current = Math.max(
+                            minOpacity,
+                            beatOpacityRef.current * decayRate
+                        );
+                    }
+
+                    // Apply beat-gated opacity
+                    rConfig.globalOpacity = beatOpacityRef.current;
+                }
+            }
 
             // Use motion detection only
             if (motionDetectorRef.current) {
@@ -268,7 +320,7 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
                 lastTracksRef.current = tracks; // Update last known tracks
 
                 if (rendererRef.current) {
-                    rendererRef.current.setConfig(rConfig); // Ensure latest config is used
+                    rendererRef.current.setConfig(rConfig); // Apply beat-gated config
                     rendererRef.current.render(tracks, currConfig.maxLineDistance);
                 }
 
@@ -298,7 +350,7 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
         }
 
         animationRef.current = requestAnimationFrame(processFrame);
-    }, [setStats]); // Refs are stable, so we don't need them in deps
+    }, [setStats, beatGatingEnabled]); // Refs are stable, so we don't need them in deps
 
     // Handle play/pause
     const togglePlayback = useCallback(() => {

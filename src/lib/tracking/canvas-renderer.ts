@@ -52,13 +52,29 @@ export class CanvasRenderer {
 
   /**
    * Draw all tracks with boxes, labels, and constellation lines
+   * Supports beat-gating via globalOpacity and track limiting
    */
   render(tracks: Track[], maxLineDistance: number): void {
     this.clear();
 
+    // Skip rendering if fully transparent (for beat-gating)
+    if (this.config.globalOpacity <= 0) return;
+
+    // Limit tracks if configured (prioritize by score/confidence)
+    let displayTracks = tracks;
+    if (this.config.maxDisplayTracks > 0 && tracks.length > this.config.maxDisplayTracks) {
+      // Sort by score descending and take top N
+      displayTracks = [...tracks]
+        .sort((a, b) => b.score - a.score)
+        .slice(0, this.config.maxDisplayTracks);
+    }
+
     // Save context and apply DPR scaling
     this.ctx.save();
     this.ctx.scale(this.dpr, this.dpr);
+
+    // Apply global opacity for beat-gating effect
+    this.ctx.globalAlpha = this.config.globalOpacity;
 
     // Enable crisp rendering for shapes
     this.ctx.imageSmoothingEnabled = false;
@@ -69,11 +85,11 @@ export class CanvasRenderer {
 
     // Draw constellation lines first (behind boxes)
     if (this.config.showLines) {
-      this.drawConstellationLines(tracks, maxLineDistance);
+      this.drawConstellationLines(displayTracks, maxLineDistance);
     }
 
     // Draw bounding boxes and labels
-    for (const track of tracks) {
+    for (const track of displayTracks) {
       this.drawBoundingBox(track);
       this.drawLabel(track);
     }
@@ -82,10 +98,12 @@ export class CanvasRenderer {
   }
 
   /**
-   * Draw constellation lines connecting nearby tracks
+   * Draw constellation lines using K-Nearest Neighbors (KNN) approach
+   * Each track connects only to its K nearest neighbors, creating an elegant
+   * network topology instead of a spider web
    */
   private drawConstellationLines(tracks: Track[], maxDistance: number): void {
-    if (this.config.lineWidth <= 0) return;
+    if (this.config.lineWidth <= 0 || tracks.length < 2) return;
 
     // Scale line width for DPR - ensure minimum 1 device pixel
     const lineWidth = Math.max(this.config.lineWidth, 1 / this.dpr);
@@ -93,31 +111,62 @@ export class CanvasRenderer {
     this.ctx.lineCap = "round";
     this.ctx.lineJoin = "round";
 
+    // Maximum neighbors per node (K in KNN)
+    const maxNeighbors = 3;
+
+    // Track which connections we've already drawn to avoid duplicates
+    const drawnConnections = new Set<string>();
+
+    // Pre-calculate centers for all tracks
+    const centers = tracks.map((track) => ({
+      x: track.bbox.x + track.bbox.width / 2,
+      y: track.bbox.y + track.bbox.height / 2,
+    }));
+
+    // For each track, find and connect to its K nearest neighbors
     for (let i = 0; i < tracks.length; i++) {
       const trackA = tracks[i];
-      const centerA = {
-        x: trackA.bbox.x + trackA.bbox.width / 2,
-        y: trackA.bbox.y + trackA.bbox.height / 2,
-      };
+      const centerA = centers[i];
 
-      for (let j = i + 1; j < tracks.length; j++) {
-        const trackB = tracks[j];
-        const distance = getDistance(trackA.bbox, trackB.bbox);
+      // Calculate distances to all other tracks
+      const distances: { index: number; distance: number }[] = [];
 
+      for (let j = 0; j < tracks.length; j++) {
+        if (i === j) continue;
+
+        const distance = getDistance(trackA.bbox, tracks[j].bbox);
+
+        // Only consider tracks within maxDistance
         if (distance < maxDistance) {
-          const centerB = {
-            x: trackB.bbox.x + trackB.bbox.width / 2,
-            y: trackB.bbox.y + trackB.bbox.height / 2,
-          };
-
-          const opacity = Math.max(0.1, 1 - distance / maxDistance);
-
-          this.ctx.strokeStyle = `rgba(255, 255, 255, ${opacity * 0.5})`;
-          this.ctx.beginPath();
-          this.ctx.moveTo(Math.round(centerA.x) + 0.5, Math.round(centerA.y) + 0.5);
-          this.ctx.lineTo(Math.round(centerB.x) + 0.5, Math.round(centerB.y) + 0.5);
-          this.ctx.stroke();
+          distances.push({ index: j, distance });
         }
+      }
+
+      // Sort by distance and take K nearest
+      distances.sort((a, b) => a.distance - b.distance);
+      const nearestNeighbors = distances.slice(0, maxNeighbors);
+
+      // Draw lines to nearest neighbors
+      for (const neighbor of nearestNeighbors) {
+        // Create a unique key for this connection (smaller index first)
+        const connKey = i < neighbor.index
+          ? `${i}-${neighbor.index}`
+          : `${neighbor.index}-${i}`;
+
+        // Skip if already drawn
+        if (drawnConnections.has(connKey)) continue;
+        drawnConnections.add(connKey);
+
+        const centerB = centers[neighbor.index];
+
+        // Opacity based on distance - closer = more visible
+        const opacity = Math.max(0.15, 1 - neighbor.distance / maxDistance);
+
+        this.ctx.strokeStyle = `rgba(255, 255, 255, ${opacity * 0.6})`;
+        this.ctx.beginPath();
+        this.ctx.moveTo(Math.round(centerA.x) + 0.5, Math.round(centerA.y) + 0.5);
+        this.ctx.lineTo(Math.round(centerB.x) + 0.5, Math.round(centerB.y) + 0.5);
+        this.ctx.stroke();
       }
     }
   }

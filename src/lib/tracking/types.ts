@@ -74,6 +74,10 @@ export interface RendererConfig {
   fontSize: number;
   /** Position of the label relative to the box */
   textPosition: "top" | "bottom" | "center";
+  /** Global opacity for beat-gating (0-1) */
+  globalOpacity: number;
+  /** Maximum number of tracks to display (0 = unlimited) */
+  maxDisplayTracks: number;
 }
 
 /** Default tracker configuration */
@@ -100,4 +104,6 @@ export const DEFAULT_RENDERER_CONFIG: RendererConfig = {
   showLabels: true,
   fontSize: 8,
   textPosition: "top",
+  globalOpacity: 1,
+  maxDisplayTracks: 50,
 };
