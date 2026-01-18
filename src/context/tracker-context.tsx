@@ -7,6 +7,9 @@ import type { SaliencyConfig } from "@/lib/tracking/saliency-detector";
 // Detection Modes
 export type DetectionMode = "motion" | "saliency";
 
+// Detection Style Presets
+export type DetectionPreset = "default" | "dust" | "lightRays" | "edges" | "custom";
+
 // Default saliency config
 export const DEFAULT_SALIENCY_CONFIG: Required<SaliencyConfig> = {
     motionThreshold: 25,
@@ -22,6 +25,64 @@ export const DEFAULT_SALIENCY_CONFIG: Required<SaliencyConfig> = {
     minBlobArea: 150,
     mergeDistance: 60,
     bufferSize: 4,
+};
+
+// Preset configurations for different detection styles
+export const SALIENCY_PRESETS: Record<Exclude<DetectionPreset, "custom">, Required<SaliencyConfig>> = {
+    // Balanced detection for general use
+    default: DEFAULT_SALIENCY_CONFIG,
+
+    // "Dust in Light" - Many small particles, minimal merging
+    // For that TouchDesigner / ethereal dust effect
+    dust: {
+        motionThreshold: 15,
+        motionWeight: 0.15,
+        luminanceThreshold: 160,
+        luminanceWeight: 0.5,
+        adaptiveLuminance: true,
+        gradientThreshold: 30,
+        gradientWeight: 0.25,
+        flickerThreshold: 25,
+        flickerWeight: 0.1,
+        flickerWindowSize: 3,
+        minBlobArea: 8,        // Very small - detect individual particles
+        mergeDistance: 5,       // Minimal merging - keep particles separate
+        bufferSize: 2,
+    },
+
+    // "Light Rays" - Elongated bright regions, beams of light
+    lightRays: {
+        motionThreshold: 30,
+        motionWeight: 0.1,
+        luminanceThreshold: 180,
+        luminanceWeight: 0.55,
+        adaptiveLuminance: true,
+        gradientThreshold: 40,
+        gradientWeight: 0.25,
+        flickerThreshold: 50,
+        flickerWeight: 0.1,
+        flickerWindowSize: 4,
+        minBlobArea: 50,       // Medium - capture ray shapes
+        mergeDistance: 100,    // Merge into elongated rays
+        bufferSize: 3,
+    },
+
+    // "Edges" - Strong edge/contour detection
+    edges: {
+        motionThreshold: 20,
+        motionWeight: 0.2,
+        luminanceThreshold: 220,
+        luminanceWeight: 0.1,
+        adaptiveLuminance: false,
+        gradientThreshold: 25,
+        gradientWeight: 0.6,   // Heavy gradient/edge focus
+        flickerThreshold: 60,
+        flickerWeight: 0.1,
+        flickerWindowSize: 4,
+        minBlobArea: 30,
+        mergeDistance: 20,
+        bufferSize: 3,
+    },
 };
 
 // Audio/Beat settings
@@ -62,6 +123,10 @@ interface TrackerContextType {
     detectionMode: DetectionMode;
     setDetectionMode: (mode: DetectionMode) => void;
 
+    // Detection Preset
+    currentPreset: DetectionPreset;
+    applyPreset: (preset: DetectionPreset) => void;
+
     // Saliency Config (hybrid motion + light)
     saliencyConfig: Required<SaliencyConfig>;
     setSaliencyConfig: React.Dispatch<React.SetStateAction<Required<SaliencyConfig>>>;
@@ -89,6 +154,9 @@ export function TrackerProvider({ children }: { children: React.ReactNode }) {
     // Detection mode state
     const [detectionMode, setDetectionMode] = useState<DetectionMode>("saliency");
 
+    // Detection preset state
+    const [currentPreset, setCurrentPreset] = useState<DetectionPreset>("default");
+
     // Saliency config state
     const [saliencyConfig, setSaliencyConfig] = useState<Required<SaliencyConfig>>(DEFAULT_SALIENCY_CONFIG);
 
@@ -98,6 +166,28 @@ export function TrackerProvider({ children }: { children: React.ReactNode }) {
     // Renderer state
     const [rendererConfig, setRendererConfig] = useState<RendererConfig>(DEFAULT_RENDERER_CONFIG);
     const [stats, setStats] = useState<TrackingStats>({ objectCount: 0, fps: 0 });
+
+    // Apply a preset configuration
+    const applyPreset = (preset: DetectionPreset) => {
+        if (preset === "custom") {
+            setCurrentPreset("custom");
+            return;
+        }
+
+        const presetConfig = SALIENCY_PRESETS[preset];
+        setSaliencyConfig(presetConfig);
+        setCurrentPreset(preset);
+
+        // Also update legacy settings to match
+        setMotionThreshold(presetConfig.motionThreshold);
+        setMinBlobSize(presetConfig.minBlobArea);
+    };
+
+    // When saliency config changes manually, mark as custom
+    const handleSaliencyConfigChange: typeof setSaliencyConfig = (value) => {
+        setSaliencyConfig(value);
+        setCurrentPreset("custom");
+    };
 
     return (
         <TrackerContext.Provider
@@ -110,8 +200,10 @@ export function TrackerProvider({ children }: { children: React.ReactNode }) {
                 setMinBlobSize,
                 detectionMode,
                 setDetectionMode,
+                currentPreset,
+                applyPreset,
                 saliencyConfig,
-                setSaliencyConfig,
+                setSaliencyConfig: handleSaliencyConfigChange,
                 audioSettings,
                 setAudioSettings,
                 rendererConfig,
@@ -132,3 +224,4 @@ export function useTracker() {
     }
     return context;
 }
+

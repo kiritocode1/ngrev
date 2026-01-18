@@ -434,6 +434,7 @@ export class SaliencyDetector {
 
     /**
      * Morphological cleaning (erosion + dilation)
+     * Adaptive based on minBlobArea - lighter cleaning for particle mode
      */
     private morphologicalClean(
         map: Float32Array,
@@ -442,16 +443,34 @@ export class SaliencyDetector {
     ): Uint8Array {
         // Binarize first
         const binary = new Uint8Array(map.length);
-        const threshold = 0.15; // Activation threshold
+
+        // Lower threshold for particle mode to catch more small bright spots
+        const isParticleMode = this.config.minBlobArea < 50;
+        const threshold = isParticleMode ? 0.08 : 0.15;
 
         for (let i = 0; i < map.length; i++) {
             binary[i] = map[i] > threshold ? 1 : 0;
         }
 
-        // Erode
+        // Particle mode: minimal or no morphological operations
+        // This preserves individual small particles instead of merging them
+        if (isParticleMode) {
+            // Very light erosion just to remove single-pixel noise
+            if (this.config.minBlobArea < 20) {
+                // Ultra-particle mode: almost no cleaning
+                return this.erode(binary, width, height, 1, 2);
+            }
+            // Light particle mode: gentle cleaning
+            let current = this.erode(binary, width, height, 1, 3);
+            current = this.dilate(current, width, height, 1);
+            return current;
+        }
+
+        // Standard mode: more aggressive cleaning for larger objects
+        // Erode to remove noise
         let current = this.erode(binary, width, height, 2, 5);
 
-        // Dilate
+        // Dilate to restore object size
         current = this.dilate(current, width, height, 3);
         current = this.dilate(current, width, height, 2);
 

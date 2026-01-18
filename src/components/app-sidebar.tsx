@@ -17,10 +17,10 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { useTracker, DEFAULT_SALIENCY_CONFIG, DEFAULT_AUDIO_SETTINGS } from "@/context/tracker-context";
+import { useTracker, DEFAULT_SALIENCY_CONFIG, DEFAULT_AUDIO_SETTINGS, type DetectionPreset } from "@/context/tracker-context";
 import { type BoundingBoxStyle } from "@/lib/tracking/types";
 import { cn } from "@/lib/utils";
-import { Eye, Sparkles, RotateCcw } from "lucide-react";
+import { Eye, Sparkles, RotateCcw, Waves, Sun, Hexagon, Sliders } from "lucide-react";
 
 
 const BOX_STYLES: { value: BoundingBoxStyle; label: string }[] = [
@@ -62,6 +62,8 @@ export function AppSidebar() {
         setMinBlobSize,
         detectionMode,
         setDetectionMode,
+        currentPreset,
+        applyPreset,
         saliencyConfig,
         setSaliencyConfig,
         audioSettings,
@@ -70,6 +72,14 @@ export function AppSidebar() {
         setRendererConfig,
         stats,
     } = useTracker();
+
+    // Preset definitions for UI
+    const PRESET_OPTIONS: { value: DetectionPreset; label: string; icon: React.ReactNode; description: string }[] = [
+        { value: "default", label: "DEFAULT", icon: <Sliders className="w-3 h-3" />, description: "Balanced" },
+        { value: "dust", label: "DUST", icon: <Waves className="w-3 h-3" />, description: "Particles" },
+        { value: "lightRays", label: "RAYS", icon: <Sun className="w-3 h-3" />, description: "Light beams" },
+        { value: "edges", label: "EDGES", icon: <Hexagon className="w-3 h-3" />, description: "Contours" },
+    ];
 
     // Helper to calculate total weight and normalize display
     const totalWeight = saliencyConfig.motionWeight + saliencyConfig.luminanceWeight +
@@ -132,6 +142,42 @@ export function AppSidebar() {
                                 }
                             </p>
                         </div>
+
+                        {/* Detection Preset Selector (only in hybrid mode) */}
+                        {detectionMode === "saliency" && (
+                            <div className="space-y-2">
+                                <Label className="text-mono text-[10px] uppercase tracking-wider text-muted-foreground">Style</Label>
+                                <div className="grid grid-cols-2 gap-1">
+                                    {PRESET_OPTIONS.map((preset) => (
+                                        <Button
+                                            key={preset.value}
+                                            variant={currentPreset === preset.value ? "default" : "outline"}
+                                            size="sm"
+                                            className={cn(
+                                                "h-8 text-mono text-[8px] px-2 gap-1 flex-col py-1",
+                                                currentPreset === preset.value
+                                                    ? "bg-foreground text-background hover:bg-foreground/90"
+                                                    : "bg-transparent hover:bg-accent border-border"
+                                            )}
+                                            onClick={() => applyPreset(preset.value)}
+                                        >
+                                            <span className="flex items-center gap-1">
+                                                {preset.icon}
+                                                {preset.label}
+                                            </span>
+                                        </Button>
+                                    ))}
+                                </div>
+                                {currentPreset === "custom" && (
+                                    <p className="text-mono text-[8px] text-yellow-500">● Custom settings</p>
+                                )}
+                                {currentPreset === "dust" && (
+                                    <p className="text-mono text-[8px] text-muted-foreground/70">
+                                        Many small particles, like dust in light
+                                    </p>
+                                )}
+                            </div>
+                        )}
 
                         <Separator className="bg-border" />
 
