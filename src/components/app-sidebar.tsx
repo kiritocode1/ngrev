@@ -17,9 +17,10 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { useTracker } from "@/context/tracker-context";
+import { useTracker, DEFAULT_SALIENCY_CONFIG, DEFAULT_AUDIO_SETTINGS } from "@/context/tracker-context";
 import { type BoundingBoxStyle } from "@/lib/tracking/types";
 import { cn } from "@/lib/utils";
+import { Eye, Sparkles, RotateCcw } from "lucide-react";
 
 
 const BOX_STYLES: { value: BoundingBoxStyle; label: string }[] = [
@@ -59,10 +60,20 @@ export function AppSidebar() {
         setMotionThreshold,
         minBlobSize,
         setMinBlobSize,
+        detectionMode,
+        setDetectionMode,
+        saliencyConfig,
+        setSaliencyConfig,
+        audioSettings,
+        setAudioSettings,
         rendererConfig,
         setRendererConfig,
         stats,
     } = useTracker();
+
+    // Helper to calculate total weight and normalize display
+    const totalWeight = saliencyConfig.motionWeight + saliencyConfig.luminanceWeight +
+        saliencyConfig.gradientWeight + saliencyConfig.flickerWeight;
 
     return (
         <Sidebar collapsible="icon" className="border-r border-border">
@@ -79,11 +90,50 @@ export function AppSidebar() {
             </SidebarHeader>
             <SidebarContent className="p-0">
 
+                {/* ═══════════════════════════════════════════════════════════════
+                    SECTION 01: DETECTION MODE
+                ═══════════════════════════════════════════════════════════════ */}
                 <SidebarGroup className="group-data-[collapsible=icon]:hidden border-b border-border">
                     <SidebarGroupLabel className="text-mono text-[10px] uppercase tracking-widest text-muted-foreground px-4 py-3">
-                        01. Perception
+                        01. Detection
                     </SidebarGroupLabel>
                     <SidebarGroupContent className="space-y-4 px-4 pb-4">
+
+                        {/* Detection Mode Toggle */}
+                        <div className="space-y-2">
+                            <Label className="text-mono text-[10px] uppercase tracking-wider text-muted-foreground">Mode</Label>
+                            <ToggleGroup
+                                value={[detectionMode]}
+                                onValueChange={(val) => {
+                                    const newVal = Array.isArray(val) ? val[val.length - 1] : val;
+                                    if (newVal) setDetectionMode(newVal as "motion" | "saliency");
+                                }}
+                                className="justify-start w-full bg-accent p-0.5"
+                            >
+                                <ToggleGroupItem
+                                    value="motion"
+                                    className="flex-1 text-mono text-[9px] h-7 gap-1 data-[state=on]:bg-foreground data-[state=on]:text-background"
+                                >
+                                    <Eye className="w-3 h-3" />
+                                    MOTION
+                                </ToggleGroupItem>
+                                <ToggleGroupItem
+                                    value="saliency"
+                                    className="flex-1 text-mono text-[9px] h-7 gap-1 data-[state=on]:bg-foreground data-[state=on]:text-background"
+                                >
+                                    <Sparkles className="w-3 h-3" />
+                                    HYBRID
+                                </ToggleGroupItem>
+                            </ToggleGroup>
+                            <p className="text-mono text-[8px] text-muted-foreground/70">
+                                {detectionMode === "saliency"
+                                    ? "Tracks motion + light sources + flicker"
+                                    : "Tracks movement only"
+                                }
+                            </p>
+                        </div>
+
+                        <Separator className="bg-border" />
 
                         {/* Motion Sensitivity */}
                         <div className="space-y-2">
@@ -144,9 +194,286 @@ export function AppSidebar() {
                     </SidebarGroupContent>
                 </SidebarGroup>
 
+                {/* ═══════════════════════════════════════════════════════════════
+                    SECTION 02: SALIENCY WEIGHTS (only shown in hybrid mode)
+                ═══════════════════════════════════════════════════════════════ */}
+                {detectionMode === "saliency" && (
+                    <SidebarGroup className="group-data-[collapsible=icon]:hidden border-b border-border">
+                        <SidebarGroupLabel className="text-mono text-[10px] uppercase tracking-widest text-muted-foreground px-4 py-3 flex items-center justify-between">
+                            <span>02. Saliency Weights</span>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-5 w-5 p-0 opacity-50 hover:opacity-100"
+                                onClick={() => setSaliencyConfig(DEFAULT_SALIENCY_CONFIG)}
+                                title="Reset to defaults"
+                            >
+                                <RotateCcw className="w-3 h-3" />
+                            </Button>
+                        </SidebarGroupLabel>
+                        <SidebarGroupContent className="space-y-3 px-4 pb-4">
+
+                            {/* Weight visualization bar */}
+                            <div className="h-2 flex overflow-hidden border border-border">
+                                <div
+                                    className="bg-blue-500 transition-all"
+                                    style={{ width: `${(saliencyConfig.motionWeight / totalWeight) * 100}%` }}
+                                    title="Motion"
+                                />
+                                <div
+                                    className="bg-yellow-400 transition-all"
+                                    style={{ width: `${(saliencyConfig.luminanceWeight / totalWeight) * 100}%` }}
+                                    title="Light"
+                                />
+                                <div
+                                    className="bg-purple-500 transition-all"
+                                    style={{ width: `${(saliencyConfig.gradientWeight / totalWeight) * 100}%` }}
+                                    title="Gradient"
+                                />
+                                <div
+                                    className="bg-red-500 transition-all"
+                                    style={{ width: `${(saliencyConfig.flickerWeight / totalWeight) * 100}%` }}
+                                    title="Flicker"
+                                />
+                            </div>
+                            <div className="flex justify-between text-mono text-[7px] text-muted-foreground">
+                                <span className="text-blue-400">●MOT</span>
+                                <span className="text-yellow-400">●LUM</span>
+                                <span className="text-purple-400">●GRD</span>
+                                <span className="text-red-400">●FLK</span>
+                            </div>
+
+                            {/* Motion Weight */}
+                            <div className="space-y-1">
+                                <div className="flex justify-between items-center">
+                                    <Label className="text-mono text-[9px] uppercase text-blue-400">Motion</Label>
+                                    <span className="text-mono text-[9px] text-foreground">
+                                        {Math.round((saliencyConfig.motionWeight / totalWeight) * 100)}%
+                                    </span>
+                                </div>
+                                <Slider
+                                    value={[saliencyConfig.motionWeight * 100]}
+                                    min={0}
+                                    max={100}
+                                    step={5}
+                                    onValueChange={(vals) => setSaliencyConfig(c => ({ ...c, motionWeight: (Array.isArray(vals) ? vals[0] : vals) / 100 }))}
+                                    className="py-0.5"
+                                />
+                            </div>
+
+                            {/* Luminance Weight */}
+                            <div className="space-y-1">
+                                <div className="flex justify-between items-center">
+                                    <Label className="text-mono text-[9px] uppercase text-yellow-400">Light</Label>
+                                    <span className="text-mono text-[9px] text-foreground">
+                                        {Math.round((saliencyConfig.luminanceWeight / totalWeight) * 100)}%
+                                    </span>
+                                </div>
+                                <Slider
+                                    value={[saliencyConfig.luminanceWeight * 100]}
+                                    min={0}
+                                    max={100}
+                                    step={5}
+                                    onValueChange={(vals) => setSaliencyConfig(c => ({ ...c, luminanceWeight: (Array.isArray(vals) ? vals[0] : vals) / 100 }))}
+                                    className="py-0.5"
+                                />
+                            </div>
+
+                            {/* Gradient Weight */}
+                            <div className="space-y-1">
+                                <div className="flex justify-between items-center">
+                                    <Label className="text-mono text-[9px] uppercase text-purple-400">Gradient</Label>
+                                    <span className="text-mono text-[9px] text-foreground">
+                                        {Math.round((saliencyConfig.gradientWeight / totalWeight) * 100)}%
+                                    </span>
+                                </div>
+                                <Slider
+                                    value={[saliencyConfig.gradientWeight * 100]}
+                                    min={0}
+                                    max={100}
+                                    step={5}
+                                    onValueChange={(vals) => setSaliencyConfig(c => ({ ...c, gradientWeight: (Array.isArray(vals) ? vals[0] : vals) / 100 }))}
+                                    className="py-0.5"
+                                />
+                            </div>
+
+                            {/* Flicker Weight */}
+                            <div className="space-y-1">
+                                <div className="flex justify-between items-center">
+                                    <Label className="text-mono text-[9px] uppercase text-red-400">Flicker</Label>
+                                    <span className="text-mono text-[9px] text-foreground">
+                                        {Math.round((saliencyConfig.flickerWeight / totalWeight) * 100)}%
+                                    </span>
+                                </div>
+                                <Slider
+                                    value={[saliencyConfig.flickerWeight * 100]}
+                                    min={0}
+                                    max={100}
+                                    step={5}
+                                    onValueChange={(vals) => setSaliencyConfig(c => ({ ...c, flickerWeight: (Array.isArray(vals) ? vals[0] : vals) / 100 }))}
+                                    className="py-0.5"
+                                />
+                            </div>
+
+                            <Separator className="bg-border" />
+
+                            {/* Luminance Threshold */}
+                            <div className="space-y-1">
+                                <div className="flex justify-between items-center">
+                                    <Label className="text-mono text-[9px] uppercase text-muted-foreground">Light Threshold</Label>
+                                    <span className="text-mono text-[9px] text-foreground">{saliencyConfig.luminanceThreshold}</span>
+                                </div>
+                                <Slider
+                                    value={[saliencyConfig.luminanceThreshold]}
+                                    min={100}
+                                    max={255}
+                                    step={5}
+                                    onValueChange={(vals) => setSaliencyConfig(c => ({ ...c, luminanceThreshold: Array.isArray(vals) ? vals[0] : vals }))}
+                                    className="py-0.5"
+                                />
+                            </div>
+
+                            {/* Adaptive Luminance Toggle */}
+                            <div className="flex items-center justify-between">
+                                <Label className="text-mono text-[9px] uppercase text-muted-foreground">Adaptive Light</Label>
+                                <Switch
+                                    checked={saliencyConfig.adaptiveLuminance}
+                                    onCheckedChange={(c) => setSaliencyConfig(prev => ({ ...prev, adaptiveLuminance: c }))}
+                                    size="sm"
+                                />
+                            </div>
+
+                            {/* Flicker Threshold */}
+                            <div className="space-y-1">
+                                <div className="flex justify-between items-center">
+                                    <Label className="text-mono text-[9px] uppercase text-muted-foreground">Flicker Sensitivity</Label>
+                                    <span className="text-mono text-[9px] text-foreground">{saliencyConfig.flickerThreshold}</span>
+                                </div>
+                                <Slider
+                                    value={[saliencyConfig.flickerThreshold]}
+                                    min={10}
+                                    max={100}
+                                    step={5}
+                                    onValueChange={(vals) => setSaliencyConfig(c => ({ ...c, flickerThreshold: Array.isArray(vals) ? vals[0] : vals }))}
+                                    className="py-0.5"
+                                />
+                            </div>
+
+                        </SidebarGroupContent>
+                    </SidebarGroup>
+                )}
+
+                {/* ═══════════════════════════════════════════════════════════════
+                    SECTION 03: AUDIO / BEAT REACTIVITY
+                ═══════════════════════════════════════════════════════════════ */}
+                <SidebarGroup className="group-data-[collapsible=icon]:hidden border-b border-border">
+                    <SidebarGroupLabel className="text-mono text-[10px] uppercase tracking-widest text-muted-foreground px-4 py-3 flex items-center justify-between">
+                        <span>{detectionMode === "saliency" ? "03" : "02"}. Audio Reactivity</span>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-5 w-5 p-0 opacity-50 hover:opacity-100"
+                            onClick={() => setAudioSettings(DEFAULT_AUDIO_SETTINGS)}
+                            title="Reset to defaults"
+                        >
+                            <RotateCcw className="w-3 h-3" />
+                        </Button>
+                    </SidebarGroupLabel>
+                    <SidebarGroupContent className="space-y-3 px-4 pb-4">
+
+                        {/* Beat Gating Toggle */}
+                        <div className="flex items-center justify-between">
+                            <Label className="text-mono text-[10px] uppercase tracking-wider text-muted-foreground">Beat-Gating</Label>
+                            <Switch
+                                checked={audioSettings.beatGatingEnabled}
+                                onCheckedChange={(c) => setAudioSettings(prev => ({ ...prev, beatGatingEnabled: c }))}
+                                size="sm"
+                            />
+                        </div>
+
+                        {audioSettings.beatGatingEnabled && (
+                            <>
+                                {/* Beat Sensitivity */}
+                                <div className="space-y-1">
+                                    <div className="flex justify-between items-center">
+                                        <Label className="text-mono text-[9px] uppercase text-muted-foreground">Beat Sensitivity</Label>
+                                        <span className="text-mono text-[9px] text-foreground">
+                                            {Math.round(audioSettings.beatSensitivity * 100)}%
+                                        </span>
+                                    </div>
+                                    <Slider
+                                        value={[audioSettings.beatSensitivity * 100]}
+                                        min={10}
+                                        max={100}
+                                        step={5}
+                                        onValueChange={(vals) => setAudioSettings(c => ({ ...c, beatSensitivity: (Array.isArray(vals) ? vals[0] : vals) / 100 }))}
+                                        className="py-0.5"
+                                    />
+                                </div>
+
+                                {/* Min Beat Interval */}
+                                <div className="space-y-1">
+                                    <div className="flex justify-between items-center">
+                                        <Label className="text-mono text-[9px] uppercase text-muted-foreground">Beat Interval</Label>
+                                        <span className="text-mono text-[9px] text-foreground">{audioSettings.minBeatInterval}ms</span>
+                                    </div>
+                                    <Slider
+                                        value={[audioSettings.minBeatInterval]}
+                                        min={50}
+                                        max={500}
+                                        step={25}
+                                        onValueChange={(vals) => setAudioSettings(c => ({ ...c, minBeatInterval: Array.isArray(vals) ? vals[0] : vals }))}
+                                        className="py-0.5"
+                                    />
+                                </div>
+
+                                {/* Decay Rate */}
+                                <div className="space-y-1">
+                                    <div className="flex justify-between items-center">
+                                        <Label className="text-mono text-[9px] uppercase text-muted-foreground">Decay Rate</Label>
+                                        <span className="text-mono text-[9px] text-foreground">
+                                            {Math.round(audioSettings.decayRate * 100)}%
+                                        </span>
+                                    </div>
+                                    <Slider
+                                        value={[audioSettings.decayRate * 100]}
+                                        min={80}
+                                        max={99}
+                                        step={1}
+                                        onValueChange={(vals) => setAudioSettings(c => ({ ...c, decayRate: (Array.isArray(vals) ? vals[0] : vals) / 100 }))}
+                                        className="py-0.5"
+                                    />
+                                </div>
+
+                                {/* Min Opacity */}
+                                <div className="space-y-1">
+                                    <div className="flex justify-between items-center">
+                                        <Label className="text-mono text-[9px] uppercase text-muted-foreground">Base Opacity</Label>
+                                        <span className="text-mono text-[9px] text-foreground">
+                                            {Math.round(audioSettings.minOpacity * 100)}%
+                                        </span>
+                                    </div>
+                                    <Slider
+                                        value={[audioSettings.minOpacity * 100]}
+                                        min={0}
+                                        max={50}
+                                        step={5}
+                                        onValueChange={(vals) => setAudioSettings(c => ({ ...c, minOpacity: (Array.isArray(vals) ? vals[0] : vals) / 100 }))}
+                                        className="py-0.5"
+                                    />
+                                </div>
+                            </>
+                        )}
+
+                    </SidebarGroupContent>
+                </SidebarGroup>
+
+                {/* ═══════════════════════════════════════════════════════════════
+                    SECTION 04: VISUAL APPEARANCE
+                ═══════════════════════════════════════════════════════════════ */}
                 <SidebarGroup className="group-data-[collapsible=icon]:hidden border-b border-border">
                     <SidebarGroupLabel className="text-mono text-[10px] uppercase tracking-widest text-muted-foreground px-4 py-3">
-                        02. Presence
+                        {detectionMode === "saliency" ? "04" : "03"}. Presence
                     </SidebarGroupLabel>
                     <SidebarGroupContent className="space-y-4 px-4 pb-4">
 
@@ -362,9 +689,12 @@ export function AppSidebar() {
                     </SidebarGroupContent>
                 </SidebarGroup>
 
+                {/* ═══════════════════════════════════════════════════════════════
+                    SECTION 05: LIVE STATS
+                ═══════════════════════════════════════════════════════════════ */}
                 <SidebarGroup className="group-data-[collapsible=icon]:hidden">
                     <SidebarGroupLabel className="text-mono text-[10px] uppercase tracking-widest text-muted-foreground px-4 py-3">
-                        03. Pulse
+                        {detectionMode === "saliency" ? "05" : "04"}. Pulse
                     </SidebarGroupLabel>
                     <SidebarGroupContent className="px-4 pb-4">
                         {/* Stats Display */}

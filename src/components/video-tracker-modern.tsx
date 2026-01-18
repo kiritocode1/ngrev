@@ -26,7 +26,6 @@ import { getMediaPresets, type MediaPreset } from "@/app/actions";
 // Now loaded dynamically
 
 type Status = "idle" | "ready" | "processing" | "error";
-type DetectionMode = "motion" | "saliency";
 
 interface VideoTrackerProps {
     className?: string;
@@ -47,6 +46,11 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
         config,
         motionThreshold,
         minBlobSize,
+        detectionMode,
+        setDetectionMode,
+        saliencyConfig,
+        audioSettings,
+        setAudioSettings,
         rendererConfig,
         setStats
     } = useTracker();
@@ -69,22 +73,24 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
 
     // Audio analyzer for beat-gating
     const audioAnalyzerRef = useRef<AudioAnalyzer | null>(null);
-    const [beatGatingEnabled, setBeatGatingEnabled] = useState(true); // Beat-reactive mode
     const beatOpacityRef = useRef(1); // Current opacity (0-1) for smooth beat-gating
     const audioConnectedRef = useRef(false); // Track if audio is connected
-
-    // Detection mode: motion-only vs hybrid saliency (motion + light)
-    const [detectionMode, setDetectionMode] = useState<DetectionMode>("saliency");
 
     // Refs for real-time loop access (avoids stale closures)
     const rendererConfigRef = useRef(rendererConfig);
     const minBlobSizeRef = useRef(minBlobSize);
     const configRef = useRef(config);
+    const saliencyConfigRef = useRef(saliencyConfig);
+    const audioSettingsRef = useRef(audioSettings);
+    const detectionModeRef = useRef(detectionMode);
 
     // Sync refs with state
     useEffect(() => { rendererConfigRef.current = rendererConfig; }, [rendererConfig]);
     useEffect(() => { minBlobSizeRef.current = minBlobSize; }, [minBlobSize]);
     useEffect(() => { configRef.current = config; }, [config]);
+    useEffect(() => { saliencyConfigRef.current = saliencyConfig; }, [saliencyConfig]);
+    useEffect(() => { audioSettingsRef.current = audioSettings; }, [audioSettings]);
+    useEffect(() => { detectionModeRef.current = detectionMode; }, [detectionMode]);
 
     // Initialize on mount
     useEffect(() => {
@@ -93,18 +99,10 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
             threshold: motionThreshold,
             minBlobArea: minBlobSize,
         });
-        saliencyDetectorRef.current = new SaliencyDetector({
-            motionThreshold: motionThreshold,
-            minBlobArea: minBlobSize,
-            // Enable hybrid motion + light detection
-            motionWeight: 0.4,
-            luminanceWeight: 0.3,
-            gradientWeight: 0.15,
-            flickerWeight: 0.15,
-        });
+        saliencyDetectorRef.current = new SaliencyDetector(saliencyConfig);
         audioAnalyzerRef.current = new AudioAnalyzer({
-            beatSensitivity: 0.25, // Slightly less sensitive for cleaner beat detection
-            minBeatInterval: 150,  // Min 150ms between beats
+            beatSensitivity: audioSettings.beatSensitivity,
+            minBeatInterval: audioSettings.minBeatInterval,
         });
         setStatus("ready");
 
@@ -138,13 +136,24 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
                 minBlobArea: minBlobSize,
             });
         }
+    }, [motionThreshold, minBlobSize]);
+
+    // Update saliency detector config from context
+    useEffect(() => {
         if (saliencyDetectorRef.current) {
-            saliencyDetectorRef.current.setConfig({
-                motionThreshold: motionThreshold,
-                minBlobArea: minBlobSize,
+            saliencyDetectorRef.current.setConfig(saliencyConfig);
+        }
+    }, [saliencyConfig]);
+
+    // Update audio analyzer config from context
+    useEffect(() => {
+        if (audioAnalyzerRef.current) {
+            audioAnalyzerRef.current.setConfig({
+                beatSensitivity: audioSettings.beatSensitivity,
+                minBeatInterval: audioSettings.minBeatInterval,
             });
         }
-    }, [motionThreshold, minBlobSize]);
+    }, [audioSettings]);
 
     // Update renderer config (Instant Feedback)
     useEffect(() => {
@@ -291,8 +300,11 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
             const currConfig = configRef.current;
             let rConfig = { ...rendererConfigRef.current };
 
+            const currAudioSettings = audioSettingsRef.current;
+            const currDetectionMode = detectionModeRef.current;
+
             // Beat-gating: Analyze audio and modulate opacity
-            if (beatGatingEnabled && audioAnalyzerRef.current) {
+            if (currAudioSettings.beatGatingEnabled && audioAnalyzerRef.current) {
                 // Try to connect audio analyzer if not connected
                 if (!audioConnectedRef.current && !video.muted) {
                     try {
@@ -316,11 +328,9 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
                         beatOpacityRef.current = 0.7 + audioData.beatIntensity * 0.3;
                     } else {
                         // Smooth decay towards base level (keep some visibility)
-                        const decayRate = 0.92;
-                        const minOpacity = 0.15; // Always show a little
                         beatOpacityRef.current = Math.max(
-                            minOpacity,
-                            beatOpacityRef.current * decayRate
+                            currAudioSettings.minOpacity,
+                            beatOpacityRef.current * currAudioSettings.decayRate
                         );
                     }
 
@@ -330,7 +340,7 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
             }
 
             // Use selected detection mode
-            if (detectionMode === "saliency" && saliencyDetectorRef.current) {
+            if (currDetectionMode === "saliency" && saliencyDetectorRef.current) {
                 // Hybrid mode: motion + light detection
                 allDetections = saliencyDetectorRef.current.detect(video);
             } else if (motionDetectorRef.current) {
@@ -373,7 +383,7 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
         }
 
         animationRef.current = requestAnimationFrame(processFrame);
-    }, [setStats, beatGatingEnabled, detectionMode]); // Refs are stable, so we don't need them in deps
+    }, [setStats]); // Using refs for real-time values
 
     // Handle play/pause
     const togglePlayback = useCallback(() => {
@@ -692,16 +702,16 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
                         {/* Beat-Gating Toggle */}
                         {videoSrc && !isCamera && (
                             <Button
-                                variant={beatGatingEnabled ? "default" : "outline"}
+                                variant={audioSettings.beatGatingEnabled ? "default" : "outline"}
                                 size="sm"
-                                onClick={() => setBeatGatingEnabled(!beatGatingEnabled)}
-                                title={beatGatingEnabled ? "Disable beat-reactive mode" : "Enable beat-reactive mode"}
+                                onClick={() => setAudioSettings(prev => ({ ...prev, beatGatingEnabled: !prev.beatGatingEnabled }))}
+                                title={audioSettings.beatGatingEnabled ? "Disable beat-reactive mode" : "Enable beat-reactive mode"}
                                 className={cn(
                                     "text-mono text-[10px] uppercase h-8 w-8 p-0",
-                                    beatGatingEnabled ? "bg-foreground text-background" : "border-border hover:bg-accent"
+                                    audioSettings.beatGatingEnabled ? "bg-foreground text-background" : "border-border hover:bg-accent"
                                 )}
                             >
-                                {beatGatingEnabled ? (
+                                {audioSettings.beatGatingEnabled ? (
                                     <Music2 className="h-3 w-3" />
                                 ) : (
                                     <Music className="h-3 w-3" />
