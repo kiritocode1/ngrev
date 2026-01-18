@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, Camera, ChevronDown, Download, Film, Loader2, Music, Music2, Pause, Play, Upload, Volume2, VolumeX } from "lucide-react";
+import { AlertCircle, Camera, ChevronDown, Download, Eye, Film, Loader2, Music, Music2, Pause, Play, Sparkles, Upload, Volume2, VolumeX } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -14,6 +14,7 @@ import {
     CanvasRenderer,
     type Detection,
     MotionDetector,
+    SaliencyDetector,
     Tracker,
 } from "@/lib/tracking";
 import { cn } from "@/lib/utils";
@@ -25,6 +26,7 @@ import { getMediaPresets, type MediaPreset } from "@/app/actions";
 // Now loaded dynamically
 
 type Status = "idle" | "ready" | "processing" | "error";
+type DetectionMode = "motion" | "saliency";
 
 interface VideoTrackerProps {
     className?: string;
@@ -36,6 +38,7 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
     const trackerRef = useRef<Tracker | null>(null);
     const rendererRef = useRef<CanvasRenderer | null>(null);
     const motionDetectorRef = useRef<MotionDetector | null>(null);
+    const saliencyDetectorRef = useRef<SaliencyDetector | null>(null);
     const animationRef = useRef<number | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -70,6 +73,9 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
     const beatOpacityRef = useRef(1); // Current opacity (0-1) for smooth beat-gating
     const audioConnectedRef = useRef(false); // Track if audio is connected
 
+    // Detection mode: motion-only vs hybrid saliency (motion + light)
+    const [detectionMode, setDetectionMode] = useState<DetectionMode>("saliency");
+
     // Refs for real-time loop access (avoids stale closures)
     const rendererConfigRef = useRef(rendererConfig);
     const minBlobSizeRef = useRef(minBlobSize);
@@ -86,6 +92,15 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
         motionDetectorRef.current = new MotionDetector({
             threshold: motionThreshold,
             minBlobArea: minBlobSize,
+        });
+        saliencyDetectorRef.current = new SaliencyDetector({
+            motionThreshold: motionThreshold,
+            minBlobArea: minBlobSize,
+            // Enable hybrid motion + light detection
+            motionWeight: 0.4,
+            luminanceWeight: 0.3,
+            gradientWeight: 0.15,
+            flickerWeight: 0.15,
         });
         audioAnalyzerRef.current = new AudioAnalyzer({
             beatSensitivity: 0.25, // Slightly less sensitive for cleaner beat detection
@@ -116,11 +131,16 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
     }, [config]);
 
     // Update motion detector config
-    // Update motion detector config
     useEffect(() => {
         if (motionDetectorRef.current) {
             motionDetectorRef.current.setConfig({
                 threshold: motionThreshold,
+                minBlobArea: minBlobSize,
+            });
+        }
+        if (saliencyDetectorRef.current) {
+            saliencyDetectorRef.current.setConfig({
+                motionThreshold: motionThreshold,
                 minBlobArea: minBlobSize,
             });
         }
@@ -309,10 +329,13 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
                 }
             }
 
-            // Use motion detection only
-            if (motionDetectorRef.current) {
-                const motionDetections = motionDetectorRef.current.detect(video);
-                allDetections = motionDetections;
+            // Use selected detection mode
+            if (detectionMode === "saliency" && saliencyDetectorRef.current) {
+                // Hybrid mode: motion + light detection
+                allDetections = saliencyDetectorRef.current.detect(video);
+            } else if (motionDetectorRef.current) {
+                // Motion-only mode
+                allDetections = motionDetectorRef.current.detect(video);
             }
 
             if (trackerRef.current) {
@@ -350,7 +373,7 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
         }
 
         animationRef.current = requestAnimationFrame(processFrame);
-    }, [setStats, beatGatingEnabled]); // Refs are stable, so we don't need them in deps
+    }, [setStats, beatGatingEnabled, detectionMode]); // Refs are stable, so we don't need them in deps
 
     // Handle play/pause
     const togglePlayback = useCallback(() => {
@@ -662,6 +685,58 @@ export function VideoTrackerModern({ className }: VideoTrackerProps) {
                                     <VolumeX className="h-3 w-3" />
                                 ) : (
                                     <Volume2 className="h-3 w-3" />
+                                )}
+                            </Button>
+                        )}
+
+                        {/* Beat-Gating Toggle */}
+                        {videoSrc && !isCamera && (
+                            <Button
+                                variant={beatGatingEnabled ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => setBeatGatingEnabled(!beatGatingEnabled)}
+                                title={beatGatingEnabled ? "Disable beat-reactive mode" : "Enable beat-reactive mode"}
+                                className={cn(
+                                    "text-mono text-[10px] uppercase h-8 w-8 p-0",
+                                    beatGatingEnabled ? "bg-foreground text-background" : "border-border hover:bg-accent"
+                                )}
+                            >
+                                {beatGatingEnabled ? (
+                                    <Music2 className="h-3 w-3" />
+                                ) : (
+                                    <Music className="h-3 w-3" />
+                                )}
+                            </Button>
+                        )}
+
+                        {/* Detection Mode Toggle: Motion vs Saliency (Motion + Light) */}
+                        {(videoSrc || isCamera) && (
+                            <Button
+                                variant={detectionMode === "saliency" ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => setDetectionMode(detectionMode === "saliency" ? "motion" : "saliency")}
+                                title={
+                                    detectionMode === "saliency"
+                                        ? "Hybrid mode: tracking motion + light. Click for motion-only."
+                                        : "Motion-only mode. Click for hybrid motion + light."
+                                }
+                                className={cn(
+                                    "text-mono text-[10px] uppercase h-8 px-2 gap-1",
+                                    detectionMode === "saliency"
+                                        ? "bg-foreground text-background"
+                                        : "border-border hover:bg-accent"
+                                )}
+                            >
+                                {detectionMode === "saliency" ? (
+                                    <>
+                                        <Sparkles className="h-3 w-3" />
+                                        <span className="hidden sm:inline">Hybrid</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Eye className="h-3 w-3" />
+                                        <span className="hidden sm:inline">Motion</span>
+                                    </>
                                 )}
                             </Button>
                         )}
